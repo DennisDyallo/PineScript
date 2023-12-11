@@ -1,0 +1,61 @@
+//@version=4
+study("Fractal Adaptive Moving Average",shorttitle="2x FRAMA",overlay=true)
+price = input(hl2)
+len = input(defval=126,minval=1)
+FC = input(defval=4,minval=1)
+SC = input(defval=300,minval=1)
+len1 = len/2
+w = log(2/(SC+1))
+H1 = highest(high,len1)
+L1 = lowest(low,len1)
+N1 = (H1-L1)/len1
+H2 = highest(high,len)[len1]
+L2 = lowest(low,len)[len1]
+N2 = (H2-L2)/len1
+H3 = highest(high,len)
+L3 = lowest(low,len)
+N3 = (H3-L3)/len
+dimen1 = (log(N1+N2)-log(N3))/log(2)
+dimen = iff(N1>0 and N2>0 and N3>0,dimen1,nz(dimen1[1]))
+alpha1 = exp(w*(dimen-1))
+oldalpha = alpha1>1?1:(alpha1<0.01?0.01:alpha1)
+oldN = (2-oldalpha)/oldalpha
+N = (((SC-FC)*(oldN-1))/(SC-1))+FC
+alpha_ = 2/(N+1)
+alpha = alpha_<2/(SC+1)?2/(SC+1):(alpha_>1?1:alpha_)
+var float out = 0
+out := (1-alpha)*nz(out[1]) + alpha*price
+p_out = plot(out,title="FRAMA",color=color.blue,transp=90)
+
+var SIGMA = input(defval=2.0,minval=0.01)
+var e = 2.7182818284590452353602874713527
+_w = log(2/(SC+1)) / log(e) // Natural logarithm (ln(2/(SC+1))) workaround
+_N1 = (highest(high,len1) - lowest(low,len1))/len1
+_N2 = (highest(high,len1)[len1] - lowest(low,len1)[len1])/len1
+_N3 = (highest(high,len) - lowest(low,len))/len
+
+_dimen1 = (log(_N1+_N2)-log(_N3))/log(2)
+_dimen = iff(_N1>0 and _N2>0 and _N3>0,_dimen1,nz(_dimen1[1]))
+
+_alpha1 = exp(w*(_dimen-1))
+_oldalpha = _alpha1>1?1:(_alpha1<0.01?0.01:_alpha1)
+_oldN = (2-_oldalpha)/_oldalpha
+_N = (((SC-FC)*(_oldN-1))/(SC-1))+FC
+
+_alpha_ = 2/(_N+1)
+_alpha = _alpha_<2/(SC+1)?2/(SC+1):(_alpha_>1?1:_alpha_)
+
+var float _out = 0.0
+_out := (1-_alpha)*nz(_out[1]) + _alpha*price
+
+stdev = stdev(_out, len)
+
+up = _out + SIGMA * stdev
+down = _out - SIGMA * stdev
+
+p_out_ = plot(_out,title="FRAMA",color=color.red,transp=90)
+
+plot(up,title="up",color=color.rgb(255, 83, 83),transp=0)
+plot(down,title="down",color=color.green,transp=0)
+
+fill(p_out,p_out_, color= price < _out or price < out ? color.red : color.green,transp=50)

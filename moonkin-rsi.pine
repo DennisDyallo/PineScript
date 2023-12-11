@@ -1,0 +1,84 @@
+//@version=5
+indicator(title="Moonkin RSI's", shorttitle="Moonkin RSI", precision=2)
+import redshad0ww/MoonkinLibs/4 as MoonkinLibs
+
+//Debug
+var global_print_counter = array.new_int()
+array.push(global_print_counter, 0)
+print(string txt = "") => 
+    if txt != "" and barstate.islast
+        int print_counter = array.get(global_print_counter, 0)
+        printLabel = label.new(x=bar_index+30, y=high + (print_counter * 75), textcolor=color.white, color=color.black, text=txt)
+        array.set(global_print_counter, 0, print_counter + 1)
+
+//Settings 
+var useStoch = input.bool(false)
+var useRsi = input.bool(true)
+var useMfi = input.bool(false)
+var useBb = input.bool(false)
+var inputSrc = input.string("hlc3", options = ["hlc3", "close", "ohlc"])
+var length = input.int(14, "Length")
+
+for_rsi = input.int(title="RSI_period", defval=14) // Период для RSI
+for_ma = input.int(title="Basis_BB", defval=20) // Период для MA внутри BB
+for_mult = input.int(title="Stdev",defval=2, minval=1, maxval=5) // Число стандартных отклонений для BB
+for_sigma = input.float(title="Dispersion", defval=0.1, minval=0.01, maxval=1)
+
+src = switch inputSrc
+    "hlc3" => (hlc3)
+    "close" => (close)
+    "ohlc" => (ohlc4)
+    => (hlc3)
+
+// Lines
+hline(20, title="MFI Bot", color=#31c22cbe, linestyle = hline.style_solid)
+var h1 =hline(30, "RSI Bot", color=#176914, linestyle = hline.style_solid)
+hline(50, "Mid", color=color.new(#ffde4b, 50), linestyle = hline.style_solid)
+var h2 = hline(70, "RSI Top", color=#7a0b0bb9, linestyle = hline.style_solid)
+hline(80, title="MFI Top", color=#ff4343a1, linestyle = hline.style_solid)
+fill (h1, h2, color.new(color.aqua, 95))
+
+//--------RSI
+
+current_rsi = ta.rsi(src, for_rsi) 
+basis = ta.ema(current_rsi, for_ma)
+dev = for_mult * ta.stdev(current_rsi, for_ma)
+upper = basis + dev
+lower = basis - dev
+disp_up = basis + ((upper - lower) * for_sigma) 
+disp_down = basis - ((upper - lower) * for_sigma) 
+color_rsi = current_rsi >= disp_up ? color.rgb(0, 255, 132) : current_rsi <= disp_down ? color.rgb(255, 0, 0) : #ffea00
+
+plot(basis, color=color.rgb(158, 83, 158))
+plot(upper, color=#00fff057, linewidth=1)
+plot(lower, color=#00fff070, linewidth=1)
+s1 = plot(disp_up, color=color.white)
+s2 = plot(disp_down, color=color.white)
+fill(s1, s2, color=#ffffff30)
+plot(current_rsi, color=color_rsi, linewidth=1)
+
+//MF
+mfi = ta.mfi(hlc3, length)
+crossOverMfi = ta.crossover(mfi, current_rsi)
+crossUnderMfi = ta.crossunder(mfi, current_rsi)
+plot(useMfi ? mfi : na, "MFI", color=color.green, trackprice = true, display = display.all, linewidth = 1)
+plotshape((current_rsi > 69) and crossUnderMfi ? mfi : na, color = color.rgb(255, 0, 0), style=shape.triangledown, location= location.top, size = size.tiny)
+plotshape((current_rsi < 32) and crossOverMfi ? mfi : na, color = color.rgb(17, 255, 0), style=shape.triangleup, location= location.bottom, size = size.tiny)
+plot(current_rsi<lower ? current_rsi : na, "BB Cross Lower", color.rgb(0, 255, 98), join = true, style = plot.style_circles, linewidth = 2)
+plot(upper < current_rsi ? current_rsi : na, "BB Cross Upper", color.rgb(255, 45, 45), join = true, style = plot.style_circles , linewidth = 2)
+
+//Alerts
+var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >= 60
+    str.tostring(str.tonumber(timeframe.period) / 60) + "H"
+else 
+    timeframe.period
+    
+var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")"
+rsi_Green = ta.crossover(current_rsi, disp_up)
+rsi_Red = ta.crossunder(current_rsi, disp_down)
+
+if rsi_Green
+    alert("The RSI crossed above the Dispersion area - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+if rsi_Red
+    alert("The RSI crossed above the Dispersion area - Bearish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+ 
