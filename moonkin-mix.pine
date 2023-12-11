@@ -162,14 +162,14 @@ if closeAboveEma8
     alert("Closing above EMA8 - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
 
 if not aboveBearBullLine[1] and aboveBearBullLine
-    alert("Price closed above the Bull/Bear Line" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+    alert("Price closed above the Bull/Bear Line - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
 
 closingAboveHma = not aboveHullma[1] and aboveHullma
 if closingAboveHma
     alert("Cross above HMA - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
 
-if ta.highest(volume, displacement) < volume
-    alert("Highest volume in 25 candles" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+if ta.highest(volume, displacement) < volume and source < source[1]
+    alert("Highest volume in 25 candles - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
 
 if tkCrossAverageAbove
     alert("Cross Above Average - Get ready (Buy)" + tickerAndPeriodText, alert.freq_once_per_bar_close)
@@ -194,7 +194,7 @@ if closingAboveDisplacement
 
 volumeBig = volume > 1.5 * (ta.highest(volume, 10) + ta.median(volume, 10)) / 2
 if volumeBig
-    alert("Volume is 1.5 larger than previous 10 periods")
+    alert("Volume is 1.5 larger than previous 10 periods  - Bullish" + tickerAndPeriodText)
 plotchar(volumeBig ? volume : na, title="BigVolume", text="💰",  size = size.normal, offset=0, char="", location=location.bottom)
 
 if touchBollingerUpper
@@ -203,8 +203,8 @@ if touchBollingerUpper
 if touchBollingerLower
     alert("Touching BB Lower Band"+ tickerAndPeriodText, alert.freq_once_per_bar_close)
 
-plotchar(touchBollingerUpper ? source : na, text = "o", char="", textcolor = color.white, color = color.white, size = size.tiny, location = location.abovebar, title = "Touching Upper Bollinger Band")
-plotchar(touchBollingerLower ? source: na, text = "o",  char="", textcolor = color.white, color = color.white, size = size.tiny, location = location.belowbar, title = "Touching Lower Bollinger Band")
+//plotchar(touchBollingerUpper ? source : na, text = "o", char="", textcolor = color.white, color = color.white, size = size.tiny, location = location.abovebar, title = "Touching Upper Bollinger Band")
+//plotchar(touchBollingerLower ? source: na, text = "o",  char="", textcolor = color.white, color = color.white, size = size.tiny, location = location.belowbar, title = "Touching Lower Bollinger Band")
 
 //      BEARISH      BEARISH      BEARISH      BEARISH      BEARISH      BEARISH     BEARISH      BEARISH  
 closeBelowEma8 = aboveEma8[1] and not aboveEma8
