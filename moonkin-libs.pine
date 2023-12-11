@@ -1,0 +1,50 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © redshad0ww
+
+//@version=5
+
+library("MoonkinLibs")
+
+export getRainbowColor(series float value) =>
+    switch
+        value < 35 => color.from_gradient(value, 20, 35, color.rgb(255, 255, 255), color.rgb(255, 0, 0)) // White to Red
+        value < 50 => color.from_gradient(value, 35, 50, color.rgb(255, 0, 0), color.rgb(255, 255, 0)) // Red to Yellow
+        value < 65 => color.from_gradient(value, 50, 65, color.rgb(255, 255, 0), color.rgb(0, 128, 0)) // Yellow to Green
+        => color.from_gradient(value, 65, 90, color.rgb(0, 128, 0), color.rgb(100, 0, 255)) // Green to Blue
+
+export getRainbowColorCustom(series float value, int numBands, color bottomColor, color topColor, int rangeLow, int rangeHigh) =>
+    // Calculate the value range for each band
+    bandRange = (rangeHigh - rangeLow) / numBands
+
+    // Calculate the current band index
+    bandIndex = math.floor((value - rangeLow) / bandRange)
+
+    // Calculate bottom and top values for color.from_gradient
+    bottomValue = bandIndex * bandRange
+    topValue = (bandIndex + 1) * bandRange
+
+    // Calculate the bottom and top colors for color.from_gradient
+    gradientStart = color.rgb(color.r(bottomColor) + bandIndex * (color.r(topColor) - color.r(bottomColor)) / (numBands - 1),color.g(bottomColor) + bandIndex * (color.g(topColor) - color.g(bottomColor)) / (numBands - 1),color.b(bottomColor) + bandIndex * (color.b(topColor) - color.b(bottomColor)) / (numBands - 1)    )
+    gradientStop = color.rgb(color.r(bottomColor) + (bandIndex + 1) * (color.r(topColor) - color.r(bottomColor)) / (numBands - 1),color.g(bottomColor) + (bandIndex + 1) * (color.g(topColor) - color.g(bottomColor)) / (numBands - 1),color.b(bottomColor) + (bandIndex + 1) * (color.b(topColor) - color.b(bottomColor)) / (numBands - 1))
+
+    // Calculate rainbow color using color.from_gradient
+    if value < rangeLow
+        bottomColor
+    else if value > rangeHigh
+        topColor
+    else
+        if numBands <= 2
+            color.from_gradient(value, rangeLow, rangeHigh, bottomColor, topColor)
+        else
+            color.from_gradient(value, bottomValue, topValue, gradientStart, gradientStop)
+
+export testRainbow() =>
+    value = 100+(math.sin(bar_index/10)*50)
+    color = getRainbowColorCustom(value, 2, color.rgb(255, 255, 255), color.rgb(255, 0, 0), 50, 150)
+    [value, color]
+
+
+export print(string txt = "") => 
+    if txt != "" and barstate.islast
+        printLabel = label.new(x=bar_index+30, y=high + 75, textcolor=color.white, color=color.black, text=txt)
+

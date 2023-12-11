@@ -1,0 +1,249 @@
+//@version=5
+indicator("Moonkin Mix", shorttitle = "Moonkin Mix", overlay = true)
+
+var global_print_counter = array.new_int()
+array.push(global_print_counter, 0)
+print(string txt = "") => 
+    if txt != "" and barstate.islast
+        int print_counter = array.get(global_print_counter, 0)
+        printLabel = label.new(x=bar_index+30, y=high + (print_counter * 75), textcolor=color.white, color=color.black, text=txt)
+        array.set(global_print_counter, 0, print_counter + 1)
+
+//Definitions
+float source = na
+
+var sourceTypeClose = "close"
+var sourceTypeHlc3 = "hlc3"
+var sourceType = input.string(sourceTypeHlc3, "Source", options = [sourceTypeClose, sourceTypeHlc3])
+switch sourceType
+    sourceTypeClose => source := close
+    sourceTypeHlc3 => source := hlc3
+
+var cryptoSettings = syminfo.type == "crypto" or str.match(syminfo.tickerid, "USDT|BTC|ETH|WETH") != ""
+var useMovingAverages = input.bool(true, "MA's", group = "Controls")
+var useBollinger = input.bool(true, "Bollinger", group = "Controls")
+var useIchimoku = input.bool(true, "Ichimoku", group = "Controls")
+var useHma = input.bool(true, "Hull's Moving Average", group = "Controls")
+//var useSar = input.bool(true, "Use Sar", group = "Controls")
+var useYvwap = input.bool(true, "Use Yesterdays VWAP", group = "Controls")
+
+//Moving Averages
+//MA20 = ta.sma(source, 20)
+MA50 = ta.sma(source, 50)
+MA100 = ta.sma(source, 100)
+MA200 = ta.sma(source, 200)
+MA200D = request.security(syminfo.tickerid, "1D", MA200, lookahead=barmerge.lookahead_on)
+
+//Plot
+//plot(MA20, color = color.lime, linewidth=1, title="Ma20", transp=60)
+plot(useMovingAverages ? MA50 : na, color = color.new(color.orange, 100), linewidth=1, title="Ma50")
+plot(useMovingAverages ? MA100 : na, color = color.new(color.yellow, 100), linewidth=2, title="Ma100")
+plot(useMovingAverages and not timeframe.isdaily ? MA200 : na, color = color.new(color.green, 40), linewidth = 2, title="Ma200")
+plot(useMovingAverages ? MA200D : na, color = color.new(#00e1ff, 0), linewidth = 2, title="Ma200D")
+plot(useMovingAverages ? ta.cross(MA50, MA200) ? MA50 : na : na , style = plot.style_cross, linewidth = 2, title="cross", color=color.white)
+
+//Exponential Moving averages
+EMA8 = ta.ema(source, 8)
+//EMA20 = ta.ema(source, 20)
+EMA50 = ta.ema(source, 50)
+//EMA100 = ta.ema(source, 100)
+EMA200 = ta.ema(source, 200)
+
+//Plot
+plot(useMovingAverages ? EMA8 : na, color = color.new(color.fuchsia, 15), linewidth=1, title="Ema8")
+//plot(useMovingAverages ? EMA20: na, color = color.new(color.purple, 100), linewidth=2, title="Ema20")
+plot(useMovingAverages ? EMA50: na, color = color.new(color.orange, 100), linewidth=2, title="EMa50")
+//plot(useMovingAverages ? EMA100: na, color = color.new(color.yellow, 100), linewidth=2, title="EMa100")
+plot(useMovingAverages ? EMA200: na, color = color.new(color.green, 50), linewidth=2, title="EMa200",style=plot.style_stepline)
+
+aboveEma8 = source > EMA8
+
+//Bull Bear Line (Rev Eng from Main Indicator)
+out  = ta.ema(close, 83)
+out2 = ta.ema(low, 125)
+bearBullLine = (out + out2) / 2
+aboveBearBullLine = source > bearBullLine
+plot(bearBullLine, title="Bull/Bear Line", color=color.rgb(43, 230, 255), style=plot.style_stepline) //This should be used to distinguish bullish/bearish colors of the bars 
+
+//Yesterday's VWAP
+yVwap = ta.vwap(source[1])
+dYVwap = request.security(syminfo.tickerid, "1D", yVwap, lookahead=barmerge.lookahead_on)
+plot(useYvwap ? dYVwap : na, title = "Previous Day VWAP", style = plot.style_cross, color=color.rgb(80, 249, 255), trackprice = true, show_last=62)
+
+//Bollinger Band
+basisb = ta.sma(source, 20)
+devb = 2 * ta.stdev(source, 20)
+upperb = basisb + devb
+lowerb = basisb - devb
+
+bbUpper = plot(useBollinger ? upperb : na, color = color.new(color.white, 50), linewidth=1, title="UpperRange")
+bbLower = plot(useBollinger ? lowerb : na, color = color.new(color.white, 50), linewidth=1, title="LowerRange")
+fill(bbLower, bbUpper, color = #e3b80035)
+
+// Script that checks if price is within the upper and lower bands of the upper and lower bollinger bands
+devUpperb = 3.14 * ta.stdev(upperb, 3)
+upperBandLower = upperb - devUpperb
+upperBandUpper = upperb + devUpperb
+
+devLowerb = 3.14 * ta.stdev(lowerb, 3)
+lowerBandLower = lowerb - devLowerb
+lowerBandUpper = lowerb + devLowerb
+
+touchBollingerUpper = upperBandLower <= source and source <= upperBandUpper
+touchBollingerLower = lowerBandLower <= source and source <= lowerBandUpper
+
+//Ichimoku
+donchian(lenic) => math.avg(ta.lowest(lenic), ta.highest(lenic))
+conversionPeriods   = cryptoSettings ? 20 : 9
+basePeriods         = cryptoSettings ? 60 : 26
+laggingSpan2Periods = cryptoSettings ? 120 : 52
+displacement        = cryptoSettings ? 30 : 26 //Lagging Span
+
+conversionLine = donchian(conversionPeriods) //Tenkan 
+baseLine = donchian(basePeriods) //Kijun
+leadLine1 = math.avg(conversionLine, baseLine) //Average
+leadLine2 = donchian(laggingSpan2Periods)
+
+plot(useIchimoku ? conversionLine : na, color=color.new(#00ff0c, 0), title="Conversion Line", linewidth = 1)
+plot(useIchimoku ? baseLine : na, color=color.new(#ff2638, 15), title="Base Line", linewidth = 1)
+// plot(useIchimoku ? leadLine1 : na, "TK Average", color = color.rgb(84, 181, 192)) 
+laggingPlot = plot(useIchimoku ? source : na, offset = -displacement + 1, color=color.rgb(0, 0, 0, 40), linewidth = 1, title="Lagging Span")
+
+p1ic = plot(useIchimoku ? leadLine1 : na, offset = displacement-1, color=color.new(color.teal, 50), title="Support")
+p2ic = plot(useIchimoku ? leadLine2 : na, offset = displacement-1, color=color.new(color.red, 50), title="Resistance")
+fill(p1ic, p2ic, color = leadLine1 > leadLine2 ? color.new(color.teal,70) : color.new(color.red,70), title = "Cloud")
+
+tkCross             = ta.cross    (conversionLine, baseLine)
+tkCrossAbove        = ta.crossover(conversionLine, baseLine)
+tkCrossBelow        = ta.crossunder(conversionLine, baseLine)
+tkCrossAverageAbove = ta.crossover(conversionLine, leadLine1)
+tkCrossAverageBelow = ta.crossunder(conversionLine, leadLine1)
+tkCrossAverage      = tkCrossAverageAbove or tkCrossAverageBelow
+
+aboveDisplacement   = source > source[displacement-1] //Used in info box
+cloudTop            = math.max(leadLine1, leadLine2) //This is future (displacement)
+cloudBottom         = math.min(leadLine1, leadLine2) //This is future (displacement)
+cloudTop_current    = cloudTop[displacement-1] //This is where the cloud is on the current candle
+cloudBottom_current = cloudBottom[displacement-1] //This is where the cloud is on the current candle
+
+//Price in relation to cloud
+aboveCloud     = cloudTop_current < source
+belowCloud     = source < cloudBottom_current
+insideCloud    = not aboveCloud and not belowCloud
+
+plotshape(aboveDisplacement ? source : na, text = "Above", style = shape.arrowdown, color = aboveDisplacement ? color.new(color.green, 20) : color.new(color.red, 20),  textcolor = aboveDisplacement ? color.new(color.green, 20) : color.new(color.red, 20),
+ size = size.normal, location = location.absolute, offset = -displacement+1, show_last = 1, title = "Lagging Price Shape")
+
+plotshape(not aboveDisplacement ? source: na, text = "Below", style = shape.arrowup, color = aboveDisplacement ? color.new(color.green, 20) : color.new(color.red, 20), textcolor = aboveDisplacement ? color.new(color.green, 20) : color.new(color.red, 20),
+ size = size.normal, location = location.absolute, offset = -displacement+1, show_last = 1, title = "Lagging Price Shape")
+plotchar(useIchimoku ? (tkCrossAbove ? baseLine : na) : na, title="TK Cross Bullish", color= #00ff0c, text="▲", char="", size = size.normal, offset=0, location=location.belowbar)
+plotchar(useIchimoku ? (tkCrossBelow ? baseLine : na) : na, title="TK Cross Bearish", color = #ff4010, text="▼", char="", size = size.normal, offset=0, location=location.abovebar)
+plot(useIchimoku ? (tkCrossAbove ? baseLine : na) : na , style = plot.style_cross, linewidth = 3, title="TK Cross Bullish", color=#00ff0c)
+plot(useIchimoku ? (tkCrossBelow ? baseLine : na) : na , style = plot.style_cross, linewidth = 3, title="TK Cross Bearish", color=#ff4010)
+
+//Alerts
+var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >= 60
+    str.tostring(str.tonumber(timeframe.period) / 60) + "H"
+else 
+    timeframe.period
+    
+var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")"
+
+//Hull Moving Average
+hmaLength = input.int(125, minval=1, title = "HMA Length")
+hullma = ta.wma(2*ta.wma(source, hmaLength/2)-ta.wma(source, hmaLength), math.floor(math.sqrt(hmaLength)))
+aboveHullma = source > hullma
+plot(useHma ? hullma : na, "HMA", color = aboveHullma ? color.rgb(255, 255, 0) : color.rgb(0,0,0), linewidth = 2)
+
+//BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH         
+
+closeAboveEma8 = not aboveEma8[1] and aboveEma8
+if closeAboveEma8
+    alert("Closing above EMA8 - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if not aboveBearBullLine[1] and aboveBearBullLine
+    alert("Price closed above the Bull/Bear Line" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+closingAboveHma = not aboveHullma[1] and aboveHullma
+if closingAboveHma
+    alert("Cross above HMA - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if ta.highest(volume, displacement) < volume
+    alert("Highest volume in 25 candles" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if tkCrossAverageAbove
+    alert("Cross Above Average - Get ready (Buy)" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if tkCrossAbove and aboveCloud
+    alert("TK Cross Above Kumo Cloud - Buy (Above trend)" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if tkCrossAbove and belowCloud
+    alert("TK Cross - Buy (Short term trade)" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+exitingCloud = (not aboveCloud[1] or insideCloud[1]) and aboveCloud
+if exitingCloud
+    alert("Exiting Cloud (Upper) - Buy" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+enteringCloud_fromBelow = belowCloud[1] and insideCloud
+if enteringCloud_fromBelow
+    alert("Entering Cloud (Bottom) - Buy" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+closingAboveDisplacement = not aboveDisplacement[1] and aboveDisplacement
+if closingAboveDisplacement
+    alert("Closing above displacement (25) - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+volumeBig = volume > 1.5 * (ta.highest(volume, 10) + ta.median(volume, 10)) / 2
+if volumeBig
+    alert("Volume is 1.5 larger than previous 10 periods")
+plotchar(volumeBig ? volume : na, title="BigVolume", text="💰",  size = size.normal, offset=0, char="", location=location.bottom)
+
+if touchBollingerUpper
+    alert("Touching BB Upper Band"+ tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if touchBollingerLower
+    alert("Touching BB Lower Band"+ tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+plotchar(touchBollingerUpper ? source : na, text = "o", char="", textcolor = color.white, color = color.white, size = size.tiny, location = location.abovebar, title = "Touching Upper Bollinger Band")
+plotchar(touchBollingerLower ? source: na, text = "o",  char="", textcolor = color.white, color = color.white, size = size.tiny, location = location.belowbar, title = "Touching Lower Bollinger Band")
+
+//      BEARISH      BEARISH      BEARISH      BEARISH      BEARISH      BEARISH     BEARISH      BEARISH  
+closeBelowEma8 = aboveEma8[1] and not aboveEma8
+if closeBelowEma8
+    alert("Closing below EMA8 - Bearish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+closingBelowHma = aboveHullma[1] and not aboveHullma
+if closingBelowHma
+    alert("Cross below HMA - Bearish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if tkCrossBelow and aboveCloud
+    alert("TK Cross - Sell (Warning, set stop losses, prepare to get out)" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if tkCrossBelow and belowCloud
+    alert("TK Cross Below Kumo Cloud - Sell" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+if tkCrossAverageBelow
+    alert("Cross Below Average - Get ready (Sell)" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+exitingCloudLower = (not belowCloud[1] or insideCloud[1]) and belowCloud
+if exitingCloudLower
+    alert("Exiting Cloud (Lower) - Sell" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+enteringCloud_fromAbove = (not insideCloud[1] or aboveCloud[1]) and insideCloud
+if enteringCloud_fromAbove
+    alert("Entering Cloud (Top) - Sell" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+closingBelowDisplacement = aboveDisplacement[1] and not aboveDisplacement
+if closingBelowDisplacement
+    alert("Closing below displacement (25) - Bearish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+
+
+percentageAboveDisplacement = math.round(((source / source[displacement])-1)*100,2)
+// Info Table
+var infoTable = table.new(position = position.top_right, columns = 1, rows = 11, border_width = 1)
+if barstate.islast
+    table.cell(table_id = infoTable, column = 0, row = 0, bgcolor = color.new(color.black, 100))
+    table.cell(table_id = infoTable, column = 0, row = 1, text = "Settings are: " + (cryptoSettings ? "Crypto" : "Normal"), text_halign = text.align_left, bgcolor = color.yellow)
+    table.cell(table_id = infoTable, column = 0, row = 2, text = "Source: " + sourceType, text_halign = text.align_left, bgcolor = color.yellow)
+    table.cell(table_id = infoTable, column = 0, row = 3, text = "Price is " + (aboveDisplacement ? "ABOVE" : "BELOW") + "(" + str.tostring(percentageAboveDisplacement)  + "%)", text_halign = text.align_left, bgcolor= (aboveDisplacement ? color.new(color.green, 30)  : color.new( color.red, 30) ))
+    table.cell(table_id = infoTable, column = 0, row = 4, text = "Price is " + (aboveCloud ? "ABOVE": insideCloud ? "INSIDE":"BELOW") + " Cloud", bgcolor= (aboveCloud ? color.new(color.green, 30)  : insideCloud ? color.new( color.yellow, 30) : color.new( color.red, 30)), text_halign = text.align_left)
+    //table.cell(table_id = infoTable, column = 0, row = 5, text = "CTOP "+str.tostring(cloudTop[displacement-1])+" CBOT "+str.tostring(cloudBottom[displacement-1]), bgcolor = color.yellow, text_halign = text.align_left)
