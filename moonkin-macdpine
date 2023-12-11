@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="Moonkin MACD", shorttitle="Moonkin MACD", timeframe="", timeframe_gaps=true)
+indicator(title="Moonkin MACD", shorttitle="Moonkin MACD")
 // Getting inputs
 fast_length = input(title="Fast Length", defval=12)
 slow_length = input(title="Slow Length", defval=26)
@@ -29,4 +29,16 @@ crossOver = ta.crossover(macd,signal)
 crossUnder = ta.crossunder(macd,signal)
 plot(crossOver or crossUnder ? macd : na , style = plot.style_cross, linewidth = 2, title="cross", color= crossUnder ? color.red : color.white)
 
+//Alerts
 alertcondition(crossOver or crossUnder, "MACD Cross", "{{exchange}}:{{ticker}}, price = {{close}}, volume = {{volume}}")
+
+var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >= 60
+    str.tostring(str.tonumber(timeframe.period) / 60) + "H"
+else 
+    timeframe.period
+    
+var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")" + " - " + str.tostring(close) + " - " + str.tostring(math.round(((src / src[1])-1)*100,2)) + "%"
+if crossOver
+    alert("MACD Cross Up" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+if crossUnder
+    alert("MACD Cross Down" + tickerAndPeriodText, alert.freq_once_per_bar_close)

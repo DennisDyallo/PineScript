@@ -1,5 +1,5 @@
 //@version=4
-study("Fractal Adaptive Moving Average",shorttitle="2x FRAMA",overlay=true)
+study("Moonkin FRAMA", shorttitle="Moonkin FRAMA",overlay=true)
 price = input(hl2)
 len = input(defval=126,minval=1)
 FC = input(defval=4,minval=1)
@@ -59,3 +59,16 @@ plot(up,title="up",color=color.rgb(255, 83, 83),transp=0)
 plot(down,title="down",color=color.green,transp=0)
 
 fill(p_out,p_out_, color= price < _out or price < out ? color.red : color.green,transp=50)
+
+//Alerts
+var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >= 60
+    str.tostring(str.tonumber(timeframe.period) / 60) + "H"
+else 
+    timeframe.period
+    
+var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")" + " - " + str.tostring(close) + " - " + str.tostring(math.round(((source / source[1])-1)*100,2)) + "%"
+
+if crossover(price, up)
+    alert("FRAMA Up" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+if crossunder(price, down)
+    alert("FRAMA Down" + tickerAndPeriodText, alert.freq_once_per_bar_close)

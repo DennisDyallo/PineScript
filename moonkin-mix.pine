@@ -147,7 +147,7 @@ var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >
 else 
     timeframe.period
     
-var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")"
+var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")" + " - " + str.tostring(close) + " - " + str.tostring(math.round(((source / source[1])-1)*100,2)) + "%"
 
 //Hull Moving Average
 hmaLength = input.int(125, minval=1, title = "HMA Length")
