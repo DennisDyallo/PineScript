@@ -147,7 +147,7 @@ var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >
 else 
     timeframe.period
     
-var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")" + " - " + str.tostring(close) + " - " + str.tostring(math.round(((source / source[1])-1)*100,2)) + "%"
+var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")"
 
 //Hull Moving Average
 hmaLength = input.int(125, minval=1, title = "HMA Length")
@@ -156,7 +156,6 @@ aboveHullma = source > hullma
 plot(useHma ? hullma : na, "HMA", color = aboveHullma ? color.rgb(255, 255, 0) : color.rgb(0,0,0), linewidth = 2)
 
 //BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH        BULLISH         
-
 closeAboveEma8 = not aboveEma8[1] and aboveEma8
 if closeAboveEma8
     alert("Closing above EMA8 - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)

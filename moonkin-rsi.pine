@@ -1,6 +1,5 @@
 //@version=5
 indicator(title="Moonkin RSI's", shorttitle="Moonkin RSI", precision=2)
-import redshad0ww/MoonkinLibs/4 as MoonkinLibs
 
 //Debug
 var global_print_counter = array.new_int()
@@ -49,23 +48,24 @@ disp_up = basis + ((upper - lower) * for_sigma)
 disp_down = basis - ((upper - lower) * for_sigma) 
 color_rsi = current_rsi >= disp_up ? color.rgb(0, 255, 132) : current_rsi <= disp_down ? color.rgb(255, 0, 0) : #ffea00
 
+plot(current_rsi, color=color_rsi, linewidth=1, title="RSI")
 plot(basis, color=color.rgb(158, 83, 158))
 plot(upper, color=#00fff057, linewidth=1)
 plot(lower, color=#00fff070, linewidth=1)
-s1 = plot(disp_up, color=color.white)
-s2 = plot(disp_down, color=color.white)
+s1 = plot(disp_up, color=color.rgb(255, 255, 255, 26))
+s2 = plot(disp_down, color=color.rgb(255, 255, 255, 26))
 fill(s1, s2, color=#ffffff30)
-plot(current_rsi, color=color_rsi, linewidth=1)
 
 //MF
 mfi = ta.mfi(hlc3, length)
+var inputJoin = input.bool(false, "Join BB Cross")
 crossOverMfi = ta.crossover(mfi, current_rsi)
 crossUnderMfi = ta.crossunder(mfi, current_rsi)
 plot(useMfi ? mfi : na, "MFI", color=color.green, trackprice = true, display = display.all, linewidth = 1)
 plotshape((current_rsi > 69) and crossUnderMfi ? mfi : na, color = color.rgb(255, 0, 0), style=shape.triangledown, location= location.top, size = size.tiny)
 plotshape((current_rsi < 32) and crossOverMfi ? mfi : na, color = color.rgb(17, 255, 0), style=shape.triangleup, location= location.bottom, size = size.tiny)
-plot(current_rsi<lower ? current_rsi : na, "BB Cross Lower", color.rgb(0, 255, 98), join = true, style = plot.style_circles, linewidth = 2)
-plot(upper < current_rsi ? current_rsi : na, "BB Cross Upper", color.rgb(255, 45, 45), join = true, style = plot.style_circles , linewidth = 2)
+plot(current_rsi<lower ? current_rsi : na, "BB Cross Lower", color.rgb(0, 255, 98), join = inputJoin, style = plot.style_circles, linewidth = 2)
+plot(upper < current_rsi ? current_rsi : na, "BB Cross Upper", color.rgb(255, 45, 45), join = inputJoin, style = plot.style_circles , linewidth = 2)
 
 //Alerts
 var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >= 60
@@ -73,19 +73,21 @@ var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >
 else 
     timeframe.period
     
-//Alerts
-var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >= 60
-    str.tostring(str.tonumber(timeframe.period) / 60) + "H"
-else 
-    timeframe.period
-    
-var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")" + " - " + str.tostring(close) + " - " + str.tostring(math.round(((source / source[1])-1)*100,2)) + "%"
+var string tickerAndPeriodText = " for " + syminfo.ticker + " (" + timestr + ")"
 
 rsi_Green = ta.crossover(current_rsi, disp_up)
 rsi_Red = ta.crossunder(current_rsi, disp_down)
 
 if rsi_Green
-    alert("The RSI crossed above the Dispersion area - Bullish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+    alert("BULLISH: The RSI crossed above the Dispersion area" + tickerAndPeriodText, alert.freq_once_per_bar_close)
 if rsi_Red
-    alert("The RSI crossed above the Dispersion area - Bearish" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+    alert("BEARISH: The RSI crossed above the Dispersion area" + tickerAndPeriodText, alert.freq_once_per_bar_close)
  
+// Alert when RSI crosses 50
+rsi_cross_50_over = ta.crossover(current_rsi, 50)
+rsi_cross_50_down = ta.crossunder(current_rsi, 50)
+
+if rsi_cross_50_over
+    alert("BULLISH: The RSI crossed above 50 ({{close}})" + tickerAndPeriodText, alert.freq_once_per_bar_close)
+if rsi_cross_50_down
+    alert("BEARISH: The RSI crossed below 50 ({{close}})" + tickerAndPeriodText, alert.freq_once_per_bar_close)
