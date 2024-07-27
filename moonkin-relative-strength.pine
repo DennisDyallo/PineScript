@@ -1,0 +1,30 @@
+//@version=5
+indicator("Relative Strength", shorttitle="RS")
+
+var bool isCrypto = syminfo.type == "crypto" or str.match(syminfo.tickerid, "USDT|USD|BTC|ETH|WETH") != ""
+var string cryptoSymbol = input.string("CRYPTOCAP:TOTAL", title="Crypto Comparative Symbol")
+var string stockSymbol = input.string("NIFTY", title="Stock Comparative Symbol")
+var string overriddenSymbol = input.string("", title="Overridden Symbol")
+
+var string comparativeSymbol = overriddenSymbol != "" ? overriddenSymbol : isCrypto ? cryptoSymbol : stockSymbol
+
+length = input.int(50, minval=1, title="Period")
+showMA = input.bool(defval=false, title="Show Moving Average")
+lengthMA = input.int(10, minval=1, title="Moving Average Period")
+
+baseSymbol = request.security(syminfo.tickerid, timeframe.period, close)
+comparativeSymbolData = request.security(comparativeSymbol, timeframe.period, close)
+
+relativeStrength = baseSymbol / baseSymbol[length] / (comparativeSymbolData / comparativeSymbolData[length]) - 1
+
+risingAndPositive = relativeStrength > relativeStrength[1] and relativeStrength > 0
+fallingAndPositive = relativeStrength < relativeStrength[1] and relativeStrength > 0
+
+columnColor = risingAndPositive ? color.aqua : fallingAndPositive ? color.navy : color.red
+
+plot(relativeStrength, title="RS", color=columnColor, style=plot.style_histogram, linewidth = 2)
+sma = ta.sma(relativeStrength, lengthMA)
+col2 = relativeStrength > sma ? color.yellow : relativeStrength < sma ? color.blue : na
+
+plot(showMA ? sma : na, color=col2)
+hline(0, color=color.black, linestyle=hline.style_dotted)

@@ -18,17 +18,10 @@ base = switch inputIndicator
     "mfi" => ta.mfi(src,14)
     "rsi" => ta.rsi(src,14)
 
-// getRainbowColor(series float rsiValue) =>
-//     switch
-//         rsiValue < 35 => color.from_gradient(rsiValue, 25, 35, color.rgb(255, 255, 255), color.rgb(255, 0, 0)) // White to Red
-//         rsiValue < 50 => color.from_gradient(rsiValue, 35, 50, color.rgb(255, 0, 0), color.rgb(255, 255, 0)) // Red to Yellow
-//         rsiValue < 60 => color.from_gradient(rsiValue, 50, 60, color.rgb(255, 255, 0), color.rgb(35, 250, 35)) // Yellow to Green
-//         =>               color.from_gradient(rsiValue, 60, 85, color.rgb(75, 255, 225), color.rgb(251, 124, 255)) // Green to Blue
-
 getRainbowColor(series float rsiValue) =>
     switch
-        rsiValue < 30 => color.from_gradient(rsiValue, 15, 30, color.rgb(255, 0, 0), color.rgb(255, 80, 0)) 
-        rsiValue < 40 => color.from_gradient(rsiValue, 30, 40, color.rgb(255, 80, 0), color.rgb(255, 255, 0)) 
+        rsiValue < 35 => color.from_gradient(rsiValue, 20, 32, color.rgb(255, 0, 0), color.rgb(255, 80, 0)) 
+        rsiValue < 40 => color.from_gradient(rsiValue, 32, 40, color.rgb(255, 80, 0), color.rgb(255, 255, 0)) 
         rsiValue < 50 => color.from_gradient(rsiValue, 40, 50, color.rgb(255, 255, 0), color.rgb(255, 255, 255)) 
         rsiValue < 70 => color.from_gradient(rsiValue, 50, 60, color.rgb(255, 255, 255), color.rgb(75, 255, 255)) 
         =>               color.from_gradient(rsiValue, 70, 90, color.rgb(75, 255, 225), color.rgb(255, 0, 255)) 
@@ -45,66 +38,4 @@ plotchar(useRsi and (rsi > 75 ? rsi : na), title = "Rsi Print", color = rsiColor
 plotchar(useRsi and (rsi < 35 ? rsi : na), title = "Rsi Print", color = rsiColor, char = "x", size=size.tiny, location = location.belowbar)
 
 //RSI 
-// leftBars = input.int(14), rightBars = input.int(14)
 
-// rsiPivotsLow = ta.pivotlow(low, leftBars, rightBars)
-// rsiPivotsLowFiltered  = fixnan(rsiPivotsLow)
-// higherLow = rsiPivotsLowFiltered > rsiPivotsLowFiltered[1]
-
-// rsiPivotsHigh = ta.pivothigh(high, leftBars, rightBars)
-// rsiPivotsHighFiltered  = fixnan(rsiPivotsHigh)
-// lowerHigh = rsiPivotsHighFiltered > rsiPivotsHighFiltered[1]
-
-// plot(rsiPivotsLow, style=plot.style_line, linewidth=1, color= higherLow ? color.green : color.red, offset=-rightBars)
-// plot(rsiPivotsHigh, style=plot.style_line, linewidth=1, color= lowerHigh ? color.green : color.red, offset=-rightBars)
-
-// Squat Bar Signal -- current Volume is greater than previous volume but Current bar MFI(Market Facilitation index) is lesser than previous bar MFI
-// Other Conditions -- Current Bars Range is lesser than (Average Range * Range Multiplier)
-
-// Non Squat Bar Buy Signal(Green Up Triangle) -- Volume and MFI is greater than previous bar, Close greater than open, Close is greater than midpoint
-// Non Squat Bar Sell Signal(Red Down Triangle) -- Volume and MFI is greater than previous bar, Close lesser than open, Close is lesser than midpoint
-
-var rmSource = input(title="Range Multiplier", defval=1.1)
-var av = input(title="Squat Lookback period", defval=50)
-
-rm = timeframe.isdaily ? 0.5 : timeframe.isweekly ? 0.9 : rmSource
-showSquatBars = input(true, title="Squat Bars")
-showNonSquatBars = input(true, title ="Non Squat Bars")
-
-todayMfi = (high - low) / volume
-yesterdayMfi = (high[1] - low[1]) / volume[1]
-
-higherMfi = todayMfi > yesterdayMfi
-lowerMfi = todayMfi < yesterdayMfi
-
-higherMean = hl2 > high[1] //The mean is higher than yesterday
-lowerMean = hl2 < high[1] //The mean is lower than yesterday
-
-higherVol = volume > volume[1] //Vol greater than yesterday
-lowerVol = volume < volume[1] //Vol lesser than yesterday
-
-var period = timeframe.isdaily ? "7D" : timeframe.isweekly ? "1W" : timeframe.period
-dhighh = request.security(syminfo.tickerid, period, high, lookahead=barmerge.lookahead_on)
-dloww  = request.security(syminfo.tickerid, period , low, lookahead=barmerge.lookahead_on)
-
-squat() => higherVol and lowerMfi // blue
-nsquat() => higherVol and higherMfi
-Range = ta.sma(dhighh - dloww ,1)
-AvgRange = ta.sma(dhighh - dloww, av)
-
-//Squat Bar Signal (Prepare for the move)
-// barcolor(showSquatBars and squat() and Range < (AvgRange * rm) ? color.rgb(0, 0, 0) : na) //Squat 
-squatSignal = showSquatBars and squat() and Range < (AvgRange * rm)
-plotshape(showSquatBars and squatSignal, color=color.rgb(68, 155, 255, 25), style=shape.triangleup,location=location.belowbar, size = size.tiny)
-
-//Nonsquat Signal (Take action)
-buysignal1 = close > open and close > hl2 and nsquat() and Range > AvgRange 
-sellsignal1 = close < open and close < hl2 and nsquat() and Range > AvgRange 
-
-//inRange = buysignal1 and math.max(close, rsiPivotsHigh) triy to filter out some signals that are not close to pivot 
-plotshape(buysignal1 and showNonSquatBars, color=color.rgb(0, 255, 8, 21), style=shape.triangleup,location=location.belowbar, size = size.tiny)
-plotshape(sellsignal1 and showNonSquatBars, color=color.rgb(255, 0, 0, 19), style=shape.triangledown,location=location.abovebar, size=size.tiny)
-
-alertcondition(squatSignal, "Squat Signal", "Squat, prepare")
-alertcondition(buysignal1, "Buy Signal", "Buy (Nonsquat)")
-alertcondition(sellsignal1, "Sell Signal", "Sell (Nonsquat)")

@@ -18,9 +18,9 @@ var useBb = input.bool(false)
 var inputSrc = input.string("hlc3", options = ["hlc3", "close", "ohlc"])
 var length = input.int(14, "Length")
 
-for_rsi = input.int(title="RSI_period", defval=14) // Период для RSI
-for_ma = input.int(title="Basis_BB", defval=20) // Период для MA внутри BB
-for_mult = input.int(title="Stdev",defval=2, minval=1, maxval=5) // Число стандартных отклонений для BB
+for_rsi = input.int(title="RSI_period", defval=14) 
+for_ma = input.int(title="Basis_BB", defval=20) 
+for_mult = input.int(title="Stdev",defval=2, minval=1, maxval=5) 
 for_sigma = input.float(title="Dispersion", defval=0.1, minval=0.01, maxval=1)
 
 src = switch inputSrc
@@ -30,15 +30,12 @@ src = switch inputSrc
     => (hlc3)
 
 // Lines
-hline(20, title="MFI Bot", color=#31c22cbe, linestyle = hline.style_solid)
-var h1 =hline(30, "RSI Bot", color=#176914, linestyle = hline.style_solid)
+var h1 =hline(30, "RSI Bot", color=#059500, linestyle = hline.style_solid)
 hline(50, "Mid", color=color.new(#ffde4b, 50), linestyle = hline.style_solid)
-var h2 = hline(70, "RSI Top", color=#7a0b0bb9, linestyle = hline.style_solid)
-hline(80, title="MFI Top", color=#ff4343a1, linestyle = hline.style_solid)
-fill (h1, h2, color.new(color.aqua, 95))
+var h2 = hline(70, "RSI Top", color=color.rgb(188, 0, 0), linestyle = hline.style_solid)
+fill (h1, h2, color.new(color.aqua, 85))
 
 //--------RSI
-
 current_rsi = ta.rsi(src, for_rsi) 
 basis = ta.ema(current_rsi, for_ma)
 dev = for_mult * ta.stdev(current_rsi, for_ma)
@@ -46,26 +43,40 @@ upper = basis + dev
 lower = basis - dev
 disp_up = basis + ((upper - lower) * for_sigma) 
 disp_down = basis - ((upper - lower) * for_sigma) 
-color_rsi = current_rsi >= disp_up ? color.rgb(0, 255, 132) : current_rsi <= disp_down ? color.rgb(255, 0, 0) : #ffea00
+//color_rsi = current_rsi >= disp_up ? color.rgb(0, 255, 132) : current_rsi <= disp_down ? color.rgb(255, 0, 0) : #ffea00
 
-plot(current_rsi, color=color_rsi, linewidth=1, title="RSI")
-plot(basis, color=color.rgb(158, 83, 158))
-plot(upper, color=#00fff057, linewidth=1)
-plot(lower, color=#00fff070, linewidth=1)
-s1 = plot(disp_up, color=color.rgb(255, 255, 255, 26))
-s2 = plot(disp_down, color=color.rgb(255, 255, 255, 26))
-fill(s1, s2, color=#ffffff30)
+rsiOpen = current_rsi[1]
+rsiHigh = math.max(current_rsi, current_rsi[1])
+rsiLow = math.min(current_rsi, current_rsi[1])
+rsiClose = current_rsi
+
+// Plot RSI as candlesticks
+color_rsi = rsiClose > rsiOpen ? color.green : color.red
+plotcandle(rsiOpen, rsiHigh, rsiLow, rsiClose, title="RSI Candles", color = color_rsi, wickcolor = color_rsi, bordercolor = color_rsi)
+
+//plot(current_rsi, color=color_rsi, linewidth=1, title="RSI", display=display.all)
+plot(basis, color=color.rgb(158, 83, 158), title="BB Basis",  display=display.pane)
+plot(upper, color=#00e1ff66, linewidth=1, title="BB Upper",  display=display.pane)
+plot(lower, color=#00e1ff66, linewidth=1, title="BB Lower",  display=display.pane)
+s1 = plot(disp_up, color=color.rgb(255, 255, 255, 26), title = "SD Top",  display=display.pane)
+s2 = plot(disp_down, color=color.rgb(255, 255, 255, 26), title = "SD Bottom", display=display.pane)
+fill(s1, s2, color=#ffffff15, display = display.all)
+
+// When RSI touches Upper BB or Lower BB plot a shape
+crossOver = ta.crossover(current_rsi, upper)
+crossUnder = ta.crossunder(current_rsi, lower)
+
+plotshape(crossOver ? current_rsi : na, color = color.rgb(255, 0, 0), style=shape.triangledown, location= location.top, size = size.tiny, title="RSI Cross BB")
+plotshape(crossUnder ? current_rsi : na, color = color.rgb(0, 255, 0), style=shape.triangleup, location= location.bottom, size = size.tiny, title="RSI Cross BB") 
 
 //MF
-mfi = ta.mfi(hlc3, length)
-var inputJoin = input.bool(false, "Join BB Cross")
+mfi = ta.mfi(close, length)
 crossOverMfi = ta.crossover(mfi, current_rsi)
 crossUnderMfi = ta.crossunder(mfi, current_rsi)
 plot(useMfi ? mfi : na, "MFI", color=color.green, trackprice = true, display = display.all, linewidth = 1)
-plotshape((current_rsi > 69) and crossUnderMfi ? mfi : na, color = color.rgb(255, 0, 0), style=shape.triangledown, location= location.top, size = size.tiny)
-plotshape((current_rsi < 32) and crossOverMfi ? mfi : na, color = color.rgb(17, 255, 0), style=shape.triangleup, location= location.bottom, size = size.tiny)
-plot(current_rsi<lower ? current_rsi : na, "BB Cross Lower", color.rgb(0, 255, 98), join = inputJoin, style = plot.style_circles, linewidth = 2)
-plot(upper < current_rsi ? current_rsi : na, "BB Cross Upper", color.rgb(255, 45, 45), join = inputJoin, style = plot.style_circles , linewidth = 2)
+plotshape((current_rsi > 69) and crossUnderMfi ? mfi : na, color = color.rgb(255, 255, 255), style=shape.triangledown, location= location.top, size = size.tiny, title="MFI Cross RSI")
+plotshape((current_rsi < 30) and crossOverMfi ? mfi : na, color = color.rgb(255, 255, 255), style=shape.triangleup, location= location.bottom, size = size.tiny, title="MFI Cross RSI")
+
 
 //Alerts
 var string timestr = if timeframe.isminutes and str.tonumber(timeframe.period) >= 60
