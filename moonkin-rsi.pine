@@ -11,7 +11,6 @@ print(string txt = "") =>
         array.set(global_print_counter, 0, print_counter + 1)
 
 //Settings 
-var useStoch = input.bool(false)
 var useRsi = input.bool(true)
 var useMfi = input.bool(false)
 var useBb = input.bool(false)
@@ -52,12 +51,13 @@ rsiClose = current_rsi
 
 // Plot RSI as candlesticks
 color_rsi = rsiClose > rsiOpen ? color.green : color.red
-plotcandle(rsiOpen, rsiHigh, rsiLow, rsiClose, title="RSI Candles", color = color_rsi, wickcolor = color_rsi, bordercolor = color_rsi)
+plotcandle(rsiOpen, rsiHigh, rsiLow, rsiClose, title="RSI Candles", color = color_rsi, wickcolor = color_rsi, bordercolor = color_rsi, display = display.pane)
 
 //plot(current_rsi, color=color_rsi, linewidth=1, title="RSI", display=display.all)
-plot(basis, color=color.rgb(158, 83, 158), title="BB Basis",  display=display.pane)
-plot(upper, color=#00e1ff66, linewidth=1, title="BB Upper",  display=display.pane)
-plot(lower, color=#00e1ff66, linewidth=1, title="BB Lower",  display=display.pane)
+plot(current_rsi, color=color_rsi, linewidth=1, title="RSI", show_last = 1, trackprice = true, display = display.all)
+plot(useBb ? basis : na, color=color.rgb(158, 83, 158), title="BB Basis",  display=display.pane)
+plot(useBb ? upper : na, color=#00e1ff66, linewidth=1, title="BB Upper",  display=display.pane)
+plot(useBb ? lower : na, color=#00e1ff66, linewidth=1, title="BB Lower",  display=display.pane)
 s1 = plot(disp_up, color=color.rgb(255, 255, 255, 26), title = "SD Top",  display=display.pane)
 s2 = plot(disp_down, color=color.rgb(255, 255, 255, 26), title = "SD Bottom", display=display.pane)
 fill(s1, s2, color=#ffffff15, display = display.all)
