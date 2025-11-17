@@ -2,6 +2,14 @@
 indicator(title="Institutional Algo 3: Bayesian Regime Classifier", shorttitle="Inst Bayesian", overlay=false, precision=0, max_bars_back=500)
 
 // ============================================================================
+// LIBRARY IMPORTS
+// ============================================================================
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/VolumeAnalysis/1 as vol_lib
+import redshad0ww/TrendDetection/1 as trend_lib
+
+// ============================================================================
 // ALGORITHM 3: INTRABAR DISTRIBUTION & BAYESIAN REGIME CLASSIFIER
 // ============================================================================
 // Most sophisticated algorithm combining intrabar analysis with regime-aware
@@ -44,19 +52,18 @@ showMarkers = input.bool(true, "Show Chart Markers", group="Visualization")
 // Debug
 debugMode = input.bool(false, "Debug Mode", group="Debug")
 
-// ============================= REGIME DETECTION =============================
+// ============================= REGIME DETECTION (using libraries) ===========
 
-// ATR-based volatility regime
-currentATR = ta.atr(atrLength)
-avgATR = ta.sma(ta.atr(atrLength), regimeLength)
-atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
+// ATR-based volatility regime (from RegimeDetection library)
+regimeData = regime_lib.detectRegime(atrLength, regimeLength)
+atrRatio = regimeData.atrRatio
+isHighVol = regimeData.isHighVol
+isLowVol = regimeData.isLowVol
 
-isHighVol = atrRatio > 1.3
-isLowVol = atrRatio < 0.7
-
-// ADX-based trend regime
-[diPlus, diMinus, adxValue] = ta.dmi(adxLength, adxLength)
-isTrending = adxValue > adxTrendThreshold
+// ADX-based trend regime (from TrendDetection library)
+trendData = trend_lib.detectADXTrend(adxLength, adxTrendThreshold, 35.0)
+adxValue = trendData.adxValue
+isTrending = trendData.isTrending
 isRanging = adxValue < adxRangeThreshold
 
 // Classify regime
@@ -116,7 +123,7 @@ if array.size(ltfClose) > 0 and array.size(ltfOpen) > 0
             sellBars += 1
 
     // Balance ratio (institutional = balanced, retail = one-sided)
-    balanceRatio = totalIntrabars > 0 ? math.abs(buyBars - sellBars) / totalIntrabars : 0.5
+    balanceRatio = math_lib.safeDivide(math.abs(buyBars - sellBars), totalIntrabars, 0.5)
     balanceScore := (1 - balanceRatio) * 100
 
     // Determine intrabar pattern
@@ -134,24 +141,22 @@ if array.size(ltfClose) > 0 and array.size(ltfOpen) > 0
         volumeStdDev = array.stdev(ltfVolume)
         volumeMean = array.avg(ltfVolume)
 
-        // Coefficient of variation (prevent division by zero)
-        volumeCV = volumeMean > 0 ? volumeStdDev / volumeMean : 1.0
+        // Coefficient of variation (using safe division)
+        volumeCV = math_lib.safeDivide(volumeStdDev, volumeMean, 1.0)
 
         // Low CV = steady accumulation, High CV = spikey retail activity
         consistencyScore := volumeCV < 0.6 ? 100.0 : math.max(0, 100 - volumeCV * 100)
 
-// ============================= FEATURE DETECTION ============================
+// ============================= FEATURE DETECTION (using VolumeAnalysis library) ===
+
+// Get volume metrics from library
+volMetrics = vol_lib.calculateVolumeMetrics(20)
 
 // Feature 1: High Volume
-avgVolume = ta.sma(volume, 20)
-highVolume = avgVolume > 0 and not na(avgVolume) and volume > (avgVolume * volumeMultiplier)
+highVolume = volMetrics.relativeVolume > volumeMultiplier
 
 // Feature 2: High Efficiency (volume per price movement)
-priceRange = high - low
-minRange = close * 0.0001
-volumeEfficiency = priceRange > minRange ? volume / priceRange : volume / minRange
-avgVolumeEfficiency = ta.sma(volumeEfficiency, 20)
-highEfficiency = avgVolumeEfficiency > 0 and not na(avgVolumeEfficiency) and volumeEfficiency > (avgVolumeEfficiency * efficiencyMultiplier)
+highEfficiency = volMetrics.efficiencyRatio > efficiencyMultiplier
 
 // Feature 3: Balanced Intrabars
 balancedIntrabars = balanceScore > balanceThreshold
