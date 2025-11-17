@@ -382,8 +382,14 @@ if debugMode
 
 // ============================= ALERTS =======================================
 
-alertcondition(ta.crossover(finalScore, scoreThreshold), "Bayesian Institutional Signal", "BAYESIAN: High probability institutional " + institutionalType + " on {{ticker}} (Score: " + str.tostring(finalScore, "#") + ", Regime: " + regime + ")")
+// Alert 1: Bayesian score crosses above threshold
+if ta.crossover(finalScore, scoreThreshold)
+    alert("BAYESIAN: High probability institutional " + institutionalType + " on " + syminfo.ticker + " (Score: " + str.tostring(finalScore, "#") + ", Regime: " + regime + ")", alert.freq_once_per_bar_close)
 
-alertcondition(signalCount == 4 and finalScore > scoreThreshold and not (finalScore[1] > scoreThreshold), "All Features Aligned", "VERY HIGH CONFIDENCE: All 4 features detected on {{ticker}} in " + regime + " regime")
+// Alert 2: All 4 features aligned
+if signalCount == 4 and finalScore > scoreThreshold and not (finalScore[1] > scoreThreshold)
+    alert("VERY HIGH CONFIDENCE: All 4 features detected on " + syminfo.ticker + " in " + regime + " regime", alert.freq_once_per_bar_close)
 
-alertcondition(regime == "RangingLowVol" and finalScore > 80, "Optimal Regime Signal", "OPTIMAL CONDITIONS: Institutional activity in ideal regime on {{ticker}} (Score: " + str.tostring(finalScore, "#") + ")")
+// Alert 3: Optimal regime signal
+if regime == "RangingLowVol" and finalScore > 80 and not (finalScore[1] > 80 and regime[1] == "RangingLowVol")
+    alert("OPTIMAL CONDITIONS: Institutional activity in ideal regime on " + syminfo.ticker + " (Score: " + str.tostring(finalScore, "#") + ")", alert.freq_once_per_bar_close)
