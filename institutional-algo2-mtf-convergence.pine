@@ -22,8 +22,14 @@ volumeThreshold2 = input.float(1.5, "Volume Threshold (HTF1)", minval=1.0, maxva
 volumeThreshold3 = input.float(1.5, "Volume Threshold (HTF2)", minval=1.0, maxval=5.0, step=0.1, group="Volume Settings")
 
 // Pattern Detection
-divergenceThreshold = input.float(0.2, "Divergence Threshold (Price Range)", minval=0.0, maxval=1.0, step=0.05, group="Pattern Settings", tooltip="Max allowed price range vs avg for accumulation pattern")
+divergenceThreshold = input.float(0.2, "Base Divergence Threshold", minval=0.0, maxval=1.0, step=0.05, group="Pattern Settings", tooltip="Base threshold - will be adjusted by ATR regime")
+useAdaptiveThreshold = input.bool(true, "Use Adaptive Threshold", group="Pattern Settings", tooltip="Adjust divergence threshold based on volatility regime")
 trendLength = input.int(50, "Trend Detection Length", minval=20, maxval=200, group="Pattern Settings")
+
+// Regime Detection Settings
+useRegimeFilter = input.bool(true, "Enable Regime Scoring", group="Regime Settings", tooltip="Award/penalize based on volatility regime")
+atrLength = input.int(14, "ATR Length", minval=7, maxval=50, group="Regime Settings")
+atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Regime Settings")
 
 // Scoring Settings
 scoreThreshold = input.int(70, "Score Threshold (Institutional)", minval=50, maxval=90, group="Scoring")
@@ -90,6 +96,30 @@ htf1RelVol = htf1AvgVolume > 0 and not na(htf1AvgVolume) and not na(htf1Volume) 
 [htf2Volume, htf2AvgVolume] = request.security(syminfo.tickerid, higherTF2, [volume, ta.sma(volume, volumeLookback)], lookahead=barmerge.lookahead_off)
 htf2RelVol = htf2AvgVolume > 0 and not na(htf2AvgVolume) and not na(htf2Volume) ? htf2Volume / htf2AvgVolume : 1.0
 
+// ============================= REGIME DETECTION =============================
+
+// ATR-based volatility regime
+currentATR = ta.atr(atrLength)
+avgATR = ta.sma(ta.atr(atrLength), atrLookback)
+atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
+
+// Classify volatility regime
+isHighVol = atrRatio > 1.3  // Current volatility >30% above average
+isLowVol = atrRatio < 0.7   // Current volatility <30% below average
+isNormalVol = not isHighVol and not isLowVol
+
+// Regime label
+regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
+
+// Adaptive divergence threshold based on regime
+adaptiveDivergence = divergenceThreshold
+if useAdaptiveThreshold
+    if isHighVol
+        adaptiveDivergence := math.min(0.5, divergenceThreshold * 1.5)  // Wider threshold in high vol
+    else if isLowVol
+        adaptiveDivergence := math.max(0.1, divergenceThreshold * 0.8)  // Tighter threshold in low vol
+    adaptiveDivergence
+
 // ============================= SCORING ======================================
 
 // 1. VOLUME CONVERGENCE SCORE (0-40 points)
@@ -115,10 +145,10 @@ rangeRatio = avgRange > 0 and not na(avgRange) ? currentRange / avgRange : 1.0
 
 priceScore = 0.0
 patternLabel = ""
-if rangeRatio < (1.0 + divergenceThreshold) and convergenceScore > 20
+if rangeRatio < (1.0 + adaptiveDivergence) and convergenceScore > 20
     priceScore := 30.0
     patternLabel := "Accumulation"
-else if rangeRatio > (1.0 + divergenceThreshold) and convergenceScore > 20
+else if rangeRatio > (1.0 + adaptiveDivergence) and convergenceScore > 20
     priceScore := 20.0
     patternLabel := "Distribution/Breakout"
 else
@@ -131,8 +161,20 @@ htf1Trend = not na(htf1Close) and not na(htf1SMA) and htf1Close > htf1SMA
 
 trendScore = htf1Trend and convergenceScore > 20 ? 10.0 : 0.0
 
-// 5. FINAL MTF SCORE (0-100)
-mtfScore = math.min(100, convergenceScore + volumePatternScore + priceScore + trendScore)
+// 5. REGIME SCORING (0-15 points)
+// Low volatility = best for detecting institutional activity (less noise)
+// High volatility = worst (more false positives, retail noise)
+regimeScore = 0.0
+if useRegimeFilter
+    if isLowVol
+        regimeScore := 15.0  // Best regime: Low vol, institutions stand out
+    else if isNormalVol
+        regimeScore := 10.0  // Neutral regime: moderate reliability
+    else if isHighVol
+        regimeScore := 0.0   // Worst regime: High vol creates false signals
+
+// 6. FINAL MTF SCORE (0-100)
+mtfScore = math.min(100, convergenceScore + volumePatternScore + priceScore + trendScore + regimeScore)
 isInstitutional = mtfScore >= scoreThreshold
 
 // ============================= VISUALIZATION ================================
@@ -163,55 +205,69 @@ bgcolor(isInstitutional ? color.new(scoreColor, 90) : na)
 // ============================= INFO TABLE ===================================
 
 if showTable
-    var table infoTable = table.new(position.top_right, 2, 12, border_width=1)
+    var table infoTable = table.new(position.top_right, 2, 15, border_width=1)
 
     if barstate.islast
         // Header (dark mode optimized)
         table.cell(infoTable, 0, 0, "MTF Convergence Analysis", text_color=color.white, bgcolor=color.new(#1976d2, 0), text_size=size.normal)
         table.merge_cells(infoTable, 0, 0, 1, 0)
 
+        // Repainting warning (critical for live bars)
+        barStatus = barstate.isconfirmed ? "[CLOSED] ✓ FINAL" : "[OPEN] ⚠️ REPAINT RISK"
+        barStatusColor = barstate.isconfirmed ? color.new(#00ff00, 70) : color.new(#ff5252, 70)
+        table.cell(infoTable, 0, 1, "Bar Status:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 1, barStatus, text_color=color.white, bgcolor=barStatusColor, text_size=size.small)
+
         // Current Status (darker backgrounds for visibility on dark mode)
-        table.cell(infoTable, 0, 1, "MTF Score:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
-        table.cell(infoTable, 1, 1, str.tostring(math.round(mtfScore, 0)), text_color=color.white, bgcolor=color.new(scoreColor, 70), text_size=size.small)
+        table.cell(infoTable, 0, 2, "MTF Score:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 2, str.tostring(math.round(mtfScore, 0)), text_color=color.white, bgcolor=color.new(scoreColor, 70), text_size=size.small)
 
-        table.cell(infoTable, 0, 2, "Pattern:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
-        table.cell(infoTable, 1, 2, patternLabel, text_color=color.white, bgcolor=color.new(scoreColor, 70), text_size=size.small)
+        table.cell(infoTable, 0, 3, "Pattern:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 3, patternLabel, text_color=color.white, bgcolor=color.new(scoreColor, 70), text_size=size.small)
 
-        table.cell(infoTable, 0, 3, "Trend:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
-        table.cell(infoTable, 1, 3, htf1Trend ? "Bullish" : "Bearish", text_color=htf1Trend ? #00ff00 : #ff5252, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 0, 4, "Trend:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 4, htf1Trend ? "Bullish" : "Bearish", text_color=htf1Trend ? #00ff00 : #ff5252, bgcolor=color.new(#424242, 0), text_size=size.small)
+
+        // Regime indicator
+        regimeColor = isLowVol ? #00ff00 : isHighVol ? #ff5252 : #ffeb3b
+        table.cell(infoTable, 0, 5, "Regime:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 5, regimeName + " (" + str.tostring(atrRatio, "#.##") + "x)", text_color=regimeColor, bgcolor=color.new(#424242, 0), text_size=size.small)
 
         // Timeframes Section
-        table.cell(infoTable, 0, 4, "Timeframes:", text_color=#ffeb3b, bgcolor=color.new(#424242, 0), text_size=size.small)
-        table.merge_cells(infoTable, 0, 4, 1, 4)
+        table.cell(infoTable, 0, 6, "Timeframes:", text_color=#ffeb3b, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.merge_cells(infoTable, 0, 6, 1, 6)
 
         // Current TF
         tfLabel = currentTF
         currentCheck = currentRelVol > volumeThreshold1 ? "✓" : "✗"
-        table.cell(infoTable, 0, 5, "Current (" + tfLabel + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
-        table.cell(infoTable, 1, 5, currentCheck + " " + str.tostring(currentRelVol, "#.#") + "x", text_color=currentRelVol > volumeThreshold1 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 0, 7, "Current (" + tfLabel + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 7, currentCheck + " " + str.tostring(currentRelVol, "#.#") + "x", text_color=currentRelVol > volumeThreshold1 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
 
         // HTF1
         htf1Check = htf1RelVol > volumeThreshold2 ? "✓" : "✗"
-        table.cell(infoTable, 0, 6, "HTF1 (" + higherTF1 + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
-        table.cell(infoTable, 1, 6, htf1Check + " " + str.tostring(htf1RelVol, "#.#") + "x", text_color=htf1RelVol > volumeThreshold2 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 0, 8, "HTF1 (" + higherTF1 + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 8, htf1Check + " " + str.tostring(htf1RelVol, "#.#") + "x", text_color=htf1RelVol > volumeThreshold2 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
 
         // HTF2
         htf2Check = htf2RelVol > volumeThreshold3 ? "✓" : "✗"
-        table.cell(infoTable, 0, 7, "HTF2 (" + higherTF2 + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
-        table.cell(infoTable, 1, 7, htf2Check + " " + str.tostring(htf2RelVol, "#.#") + "x", text_color=htf2RelVol > volumeThreshold3 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 0, 9, "HTF2 (" + higherTF2 + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 9, htf2Check + " " + str.tostring(htf2RelVol, "#.#") + "x", text_color=htf2RelVol > volumeThreshold3 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
 
         // Score Components
-        table.cell(infoTable, 0, 8, "Score Breakdown:", text_color=#ffeb3b, bgcolor=color.new(#424242, 0), text_size=size.small)
-        table.merge_cells(infoTable, 0, 8, 1, 8)
+        table.cell(infoTable, 0, 10, "Score Breakdown:", text_color=#ffeb3b, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.merge_cells(infoTable, 0, 10, 1, 10)
 
-        table.cell(infoTable, 0, 9, "Convergence:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
-        table.cell(infoTable, 1, 9, str.tostring(convergenceScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 0, 11, "Convergence:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 11, str.tostring(convergenceScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
 
-        table.cell(infoTable, 0, 10, "Pattern:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
-        table.cell(infoTable, 1, 10, str.tostring(volumePatternScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 0, 12, "Pattern:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 12, str.tostring(volumePatternScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
 
-        table.cell(infoTable, 0, 11, "Price Action:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
-        table.cell(infoTable, 1, 11, str.tostring(priceScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 0, 13, "Price Action:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 13, str.tostring(priceScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+
+        table.cell(infoTable, 0, 14, "Regime:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 14, str.tostring(regimeScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
 
 // ============================= DEBUG TABLE ==================================
 
