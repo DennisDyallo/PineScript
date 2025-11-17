@@ -84,23 +84,16 @@ export detectRegimeSimple() =>
 // @param regime RegimeData object
 // @returns Color: red for high vol, green for low vol, gray for normal
 export getRegimeColor(RegimeData regime) =>
-    regime.isHighVol ? color.new(color.red, 70) :
-    regime.isLowVol ? color.new(color.green, 70) :
-    color.new(color.gray, 70)
+    regime.isHighVol ? color.new(color.red, 70) : regime.isLowVol ? color.new(color.green, 70) :    color.new(color.gray, 70)
 
 // @function Encodes regime as numeric value for data bridge export
 // @param regime RegimeData object
 // @returns Numeric encoding: 3.0=High Vol, 2.0=Normal Vol, 1.0=Low Vol
 export encodeRegime(RegimeData regime) =>
-    regime.isHighVol ? 3.0 :
-    regime.isNormalVol ? 2.0 :
-    1.0
+    regime.isHighVol ? 3.0 :    regime.isNormalVol ? 2.0 :    1.0
 
 // @function Decodes numeric regime value back to string
 // @param encoded Encoded regime value (from encodeRegime)
 // @returns Regime name string
 export decodeRegime(float encoded) =>
-    encoded > 2.5 ? "High Vol" :
-    encoded > 1.5 ? "Normal Vol" :
-    encoded > 0.5 ? "Low Vol" :
-    "Unknown"
+    encoded > 2.5 ? "High Vol" :    encoded > 1.5 ? "Normal Vol" :    encoded > 0.5 ? "Low Vol" :    "Unknown"

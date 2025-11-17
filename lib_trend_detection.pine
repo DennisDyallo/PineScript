@@ -145,33 +145,25 @@ export detectTrendCombined(
 // @param trend TrendData object
 // @returns String: "Uptrend", "Downtrend", or "Ranging"
 export getTrendDirection(TrendData trend) =>
-    trend.isUptrend ? "Uptrend" :
-    trend.isDowntrend ? "Downtrend" :
-    "Ranging"
+    trend.isUptrend ? "Uptrend" : trend.isDowntrend ? "Downtrend" : "Ranging"
 
 // @function Gets trend color for visualization
 // @param trend TrendData object
 // @returns Color: green for up, red for down, gray for ranging
 export getTrendColor(TrendData trend) =>
-    trend.isUptrend ? color.new(color.green, 70) :
-    trend.isDowntrend ? color.new(color.red, 70) :
-    color.new(color.gray, 70)
+    trend.isUptrend ? color.new(color.green, 70) : trend.isDowntrend ? color.new(color.red, 70) : color.new(color.gray, 70)
 
 // @function Encodes trend as numeric value for data bridge export
 // @param trend TrendData object
 // @returns Numeric encoding: 1.0=Uptrend, 0.0=Ranging, -1.0=Downtrend
 export encodeTrend(TrendData trend) =>
-    trend.isUptrend ? 1.0 :
-    trend.isDowntrend ? -1.0 :
-    0.0
+    trend.isUptrend ? 1.0 : trend.isDowntrend ? -1.0 : 0.0
 
 // @function Decodes numeric trend value back to string
 // @param encoded Encoded trend value
 // @returns Trend string
 export decodeTrend(float encoded) =>
-    encoded > 0.5 ? "Uptrend" :
-    encoded < -0.5 ? "Downtrend" :
-    "Ranging"
+    encoded > 0.5 ? "Uptrend" : encoded < -0.5 ? "Downtrend" : "Ranging"
 
 // @function Calculates trend strength score (0-100)
 // @param trend TrendData object
