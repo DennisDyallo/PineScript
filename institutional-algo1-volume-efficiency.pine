@@ -11,30 +11,22 @@ indicator(title="Institutional Algo 1: Volume Efficiency & Absorption", shorttit
 // ============================= INPUTS =======================================
 
 // Volume Settings
-volumeLookback = input.int(20, "Volume Lookback Period", minval=10, maxval=100, group="Volume Settings",
-     tooltip="Period for calculating average volume")
-volumeThreshold = input.float(1.5, "Volume Threshold (x Average)", minval=1.0, maxval=5.0, step=0.1, group="Volume Settings",
-     tooltip="Minimum volume multiplier vs average")
+volumeLookback = input.int(20, "Volume Lookback Period", minval=10, maxval=100, group="Volume Settings", tooltip="Period for calculating average volume")
+volumeThreshold = input.float(1.5, "Volume Threshold (x Average)", minval=1.0, maxval=5.0, step=0.1, group="Volume Settings", tooltip="Minimum volume multiplier vs average")
 
 // Efficiency Settings
-efficiencyThreshold = input.float(1.3, "Efficiency Threshold", minval=1.0, maxval=3.0, step=0.1, group="Efficiency Settings",
-     tooltip="Volume-to-range ratio multiplier threshold")
+efficiencyThreshold = input.float(1.3, "Efficiency Threshold", minval=1.0, maxval=3.0, step=0.1, group="Efficiency Settings", tooltip="Volume-to-range ratio multiplier threshold")
 
 // Scoring Settings
-scoreThreshold = input.int(70, "Score Threshold (Institutional)", minval=50, maxval=90, group="Scoring",
-     tooltip="Minimum score to flag as institutional candle")
+scoreThreshold = input.int(70, "Score Threshold (Institutional)", minval=50, maxval=90, group="Scoring", tooltip="Minimum score to flag as institutional candle")
 
 // Visualization Settings
 showTable = input.bool(true, "Show Info Table", group="Visualization")
 showMarkers = input.bool(true, "Show Chart Markers", group="Visualization")
 showBackground = input.bool(true, "Show Background Tint", group="Visualization")
 
-// Debug & Backtesting
-debugMode = input.bool(false, "Debug Mode", group="Debug & Testing",
-     tooltip="Show all intermediate calculations")
-enableBacktest = input.bool(true, "Enable Backtesting", group="Debug & Testing")
-forwardLookback5 = input.int(5, "Forward Return Period 1", minval=1, maxval=50, group="Debug & Testing")
-forwardLookback20 = input.int(20, "Forward Return Period 2", minval=1, maxval=100, group="Debug & Testing")
+// Debug Settings
+debugMode = input.bool(false, "Debug Mode", group="Debug", tooltip="Show all intermediate calculations")
 
 // Color Settings
 col_low = input.color(color.new(color.red, 0), "Low Score Color (0-30)", group="Colors")
@@ -46,44 +38,44 @@ col_high = input.color(color.new(color.green, 0), "High Score (70-100)", group="
 
 // 1. VOLUME METRICS (0-50 points)
 avgVolume = ta.sma(volume, volumeLookback)
-relativeVolume = volume / avgVolume
-volumeScore = math.min(50, (relativeVolume - 1) * 25)
+relativeVolume = avgVolume > 0 and not na(avgVolume) ? volume / avgVolume : 1.0
+volumeScore = math.min(50, math.max(0, (relativeVolume - 1) * 25))
 
 // 2. PRICE EFFICIENCY METRICS (0-30 points)
 priceRange = high - low
 avgPriceRange = ta.sma(priceRange, volumeLookback)
-relativeRange = priceRange / avgPriceRange
+relativeRange = avgPriceRange > 0 and not na(avgPriceRange) ? priceRange / avgPriceRange : 1.0
 
 // Volume per unit of price movement (prevent division by zero)
-volumeEfficiency = volume / math.max(priceRange, close * 0.0001)
+minRange = close * 0.0001
+volumeEfficiency = priceRange > minRange ? volume / priceRange : volume / minRange
 avgVolumeEfficiency = ta.sma(volumeEfficiency, volumeLookback)
-efficiencyRatio = volumeEfficiency / avgVolumeEfficiency
+efficiencyRatio = avgVolumeEfficiency > 0 and not na(avgVolumeEfficiency) ? volumeEfficiency / avgVolumeEfficiency : 1.0
 
-// Score: 0-30 points for high efficiency
-efficiencyScore = efficiencyRatio > efficiencyThreshold ?
-     math.min(30, (efficiencyRatio - 1) * 15) : 0
+// Score: 0-30 points for high efficiency (cap at ratio of 100 to avoid extreme doji scores)
+efficiencyScore = efficiencyRatio > efficiencyThreshold and efficiencyRatio < 100 ? math.min(30, (efficiencyRatio - 1) * 15) : 0.0
 
 // 3. WICK ANALYSIS - Limit Order Detection (0-20 points)
 bodySize = math.abs(close - open)
 upperWick = high - math.max(open, close)
 lowerWick = math.min(open, close) - low
 totalWickSize = upperWick + lowerWick
-wickRatio = totalWickSize / math.max(priceRange, close * 0.0001)
+wickRatio = priceRange > minRange ? totalWickSize / priceRange : 0.0
 
 // Score: 0-20 points for significant wicks (indicates limit orders being filled)
-wickScore = wickRatio > 0.3 ? math.min(20, wickRatio * 40) : 0
+wickScore = wickRatio > 0.3 ? math.min(20, wickRatio * 40) : 0.0
 
 // 4. CLOSE POSITION - Controlled Accumulation (0-10 points)
 // Where did candle close in its range? (0=low, 0.5=middle, 1=high)
-closePosition = (close - low) / math.max(priceRange, close * 0.0001)
+closePosition = priceRange > minRange ? (close - low) / priceRange : 0.5
 
 // Institutional accumulation tends to close near middle (0.4-0.6)
 // Distribution might close near highs (institutions selling into strength)
 controlScore = 0.0
 if closePosition >= 0.4 and closePosition <= 0.6 and relativeVolume > 1.5
-    controlScore := 10.0  // Controlled accumulation
+    controlScore := 10.0
 else if closePosition > 0.7 and relativeVolume > 2.0
-    controlScore := 5.0   // Possible distribution into strength
+    controlScore := 5.0
 
 // 5. FINAL SCORE CALCULATION (0-100)
 totalScore = volumeScore + efficiencyScore + wickScore + controlScore
@@ -102,47 +94,10 @@ if isInstitutional
     else
         institutionalType := "Mixed"
 
-// ============================= BACKTESTING ==================================
-
-// Calculate forward returns for validation (avoid repainting)
-var int totalSignals = 0
-var int wins5 = 0
-var int wins20 = 0
-var float totalReturn5 = 0.0
-var float totalReturn20 = 0.0
-var int falsePositives = 0
-
-if enableBacktest and isInstitutional
-    totalSignals += 1
-
-    // Calculate forward returns (only on historical bars)
-    if bar_index < (last_bar_index - forwardLookback20)
-        forwardReturn5 = (close[forwardLookback5] - close) / close * 100
-        forwardReturn20 = (close[forwardLookback20] - close) / close * 100
-
-        totalReturn5 += forwardReturn5
-        totalReturn20 += forwardReturn20
-
-        if forwardReturn5 > 2.0
-            wins5 += 1
-        if forwardReturn20 > 5.0
-            wins20 += 1
-        if forwardReturn5 < 0
-            falsePositives += 1
-
-// Calculate metrics
-winRate5 = totalSignals > 0 ? (wins5 / totalSignals) * 100 : 0.0
-winRate20 = totalSignals > 0 ? (wins20 / totalSignals) * 100 : 0.0
-avgReturn5 = totalSignals > 0 ? totalReturn5 / totalSignals : 0.0
-avgReturn20 = totalSignals > 0 ? totalReturn20 / totalSignals : 0.0
-falsePositiveRate = totalSignals > 0 ? (falsePositives / totalSignals) * 100 : 0.0
-
 // ============================= VISUALIZATION ================================
 
 // Color gradient based on score
-scoreColor = institutionalScore >= 70 ? col_high :
-             institutionalScore >= 50 ? col_medium :
-             institutionalScore >= 30 ? col_medium_low : col_low
+scoreColor = institutionalScore >= 70 ? col_high : institutionalScore >= 50 ? col_medium : institutionalScore >= 30 ? col_medium_low : col_low
 
 // Main histogram plot
 plot(institutionalScore, "Institutional Score", color=scoreColor, style=plot.style_histogram, linewidth=2)
@@ -155,16 +110,14 @@ hline(30, "Low", color=color.new(color.gray, 80), linestyle=hline.style_dotted)
 // Background color when flagged
 bgcolor(showBackground and isInstitutional ? color.new(scoreColor, 90) : na, title="Institutional Background")
 
-// Chart markers (plotchar on main chart would require overlay=true, so we use plotshape in indicator pane)
-plotshape(showMarkers and isInstitutional and institutionalType == "Accumulation" ? institutionalScore : na,
-     "Accumulation Signal", shape.triangleup, location.bottom, color.new(color.green, 0), size=size.small)
-plotshape(showMarkers and isInstitutional and institutionalType == "Distribution" ? institutionalScore : na,
-     "Distribution Signal", shape.triangledown, location.top, color.new(color.red, 0), size=size.small)
+// Chart markers
+plotshape(showMarkers and isInstitutional and institutionalType == "Accumulation" ? institutionalScore : na, "Accumulation Signal", shape.triangleup, location.bottom, color.new(color.green, 0), size=size.small)
+plotshape(showMarkers and isInstitutional and institutionalType == "Distribution" ? institutionalScore : na, "Distribution Signal", shape.triangledown, location.top, color.new(color.red, 0), size=size.small)
 
 // ============================= INFO TABLE ===================================
 
 if showTable
-    var table infoTable = table.new(position.top_right, 2, 12, border_width=1)
+    var table infoTable = table.new(position.top_right, 2, 8, border_width=1)
 
     if barstate.islast
         // Header
@@ -173,12 +126,10 @@ if showTable
 
         // Current Status
         table.cell(infoTable, 0, 1, "Current Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(infoTable, 1, 1, str.tostring(math.round(institutionalScore, 0)),
-             text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
+        table.cell(infoTable, 1, 1, str.tostring(math.round(institutionalScore, 0)), text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
 
         table.cell(infoTable, 0, 2, "Type:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(infoTable, 1, 2, institutionalType,
-             text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
+        table.cell(infoTable, 1, 2, institutionalType, text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
 
         // Components
         table.cell(infoTable, 0, 3, "Components:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
@@ -186,52 +137,24 @@ if showTable
 
         volCheck = relativeVolume > volumeThreshold ? "✓" : "✗"
         table.cell(infoTable, 0, 4, "Volume:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 4, volCheck + " (" + str.tostring(relativeVolume, "#.#") + "x)",
-             text_color=relativeVolume > volumeThreshold ? color.lime : color.gray,
-             bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 1, 4, volCheck + " (" + str.tostring(relativeVolume, "#.#") + "x)", text_color=relativeVolume > volumeThreshold ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
 
         effCheck = efficiencyRatio > efficiencyThreshold ? "✓" : "✗"
         table.cell(infoTable, 0, 5, "Efficiency:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 5, effCheck + " (" + str.tostring(efficiencyRatio, "#.#") + "x)",
-             text_color=efficiencyRatio > efficiencyThreshold ? color.lime : color.gray,
-             bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 1, 5, effCheck + " (" + str.tostring(efficiencyRatio, "#.#") + "x)", text_color=efficiencyRatio > efficiencyThreshold ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
 
         wickCheck = wickRatio > 0.3 ? "✓" : "✗"
         table.cell(infoTable, 0, 6, "Wicks:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 6, wickCheck + " (" + str.tostring(wickRatio * 100, "#.#") + "%)",
-             text_color=wickRatio > 0.3 ? color.lime : color.gray,
-             bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 1, 6, wickCheck + " (" + str.tostring(wickRatio * 100, "#.#") + "%)", text_color=wickRatio > 0.3 ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
 
         controlCheck = closePosition >= 0.4 and closePosition <= 0.6 ? "✓" : "✗"
         table.cell(infoTable, 0, 7, "Control:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 7, controlCheck + " (Pos: " + str.tostring(closePosition * 100, "#") + "%)",
-             text_color=closePosition >= 0.4 and closePosition <= 0.6 ? color.lime : color.gray,
-             bgcolor=color.new(color.gray, 80), text_size=size.small)
-
-        // Performance Metrics (if backtesting enabled)
-        if enableBacktest
-            table.cell(infoTable, 0, 8, "Backtest Results:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
-            table.merge_cells(infoTable, 0, 8, 1, 8)
-
-            table.cell(infoTable, 0, 9, "Total Signals:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-            table.cell(infoTable, 1, 9, str.tostring(totalSignals), text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-
-            table.cell(infoTable, 0, 10, str.tostring(forwardLookback5) + "-bar Win Rate:",
-                 text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-            table.cell(infoTable, 1, 10, str.tostring(winRate5, "#.#") + "%",
-                 text_color=winRate5 > 60 ? color.lime : color.orange,
-                 bgcolor=color.new(color.gray, 80), text_size=size.small)
-
-            table.cell(infoTable, 0, 11, str.tostring(forwardLookback20) + "-bar Win Rate:",
-                 text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-            table.cell(infoTable, 1, 11, str.tostring(winRate20, "#.#") + "%",
-                 text_color=winRate20 > 60 ? color.lime : color.orange,
-                 bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 1, 7, controlCheck + " (Pos: " + str.tostring(closePosition * 100, "#") + "%)", text_color=closePosition >= 0.4 and closePosition <= 0.6 ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
 
 // ============================= DEBUG TABLE ==================================
 
 if debugMode
-    var table debugTable = table.new(position.bottom_right, 2, 10, border_width=1)
+    var table debugTable = table.new(position.bottom_right, 2, 8, border_width=1)
 
     if barstate.islast
         // Header
@@ -263,31 +186,13 @@ if debugMode
         table.cell(debugTable, 0, 7, "Control Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
         table.cell(debugTable, 1, 7, str.tostring(controlScore, "#.#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
 
-        // Performance
-        table.cell(debugTable, 0, 8, "Avg Return " + str.tostring(forwardLookback5) + ":",
-             text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 8, str.tostring(avgReturn5, "#.##") + "%",
-             text_color=avgReturn5 > 0 ? color.lime : color.red,
-             bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-
-        table.cell(debugTable, 0, 9, "False Positive:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 9, str.tostring(falsePositiveRate, "#.#") + "%",
-             text_color=falsePositiveRate < 30 ? color.lime : color.red,
-             bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-
 // ============================= ALERTS =======================================
 
 // Alert when score crosses above threshold
-alertcondition(ta.crossover(institutionalScore, scoreThreshold),
-     "Institutional Activity Detected",
-     "HIGH CONFIDENCE: Institutional " + institutionalType + " detected on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
+alertcondition(ta.crossover(institutionalScore, scoreThreshold), "Institutional Activity Detected", "HIGH CONFIDENCE: Institutional " + institutionalType + " detected on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
 
 // Alert when score crosses below threshold
-alertcondition(ta.crossunder(institutionalScore, scoreThreshold),
-     "Institutional Activity Ended",
-     "Institutional activity ended on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
+alertcondition(ta.crossunder(institutionalScore, scoreThreshold), "Institutional Activity Ended", "Institutional activity ended on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
 
 // High confidence alert (score > 85)
-alertcondition(institutionalScore > 85 and not (institutionalScore[1] > 85),
-     "Very High Confidence Signal",
-     "VERY HIGH CONFIDENCE: Institutional " + institutionalType + " on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
+alertcondition(institutionalScore > 85 and not (institutionalScore[1] > 85), "Very High Confidence Signal", "VERY HIGH CONFIDENCE: Institutional " + institutionalType + " on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
