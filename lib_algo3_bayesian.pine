@@ -1,0 +1,243 @@
+//@version=5
+// @description Library for Algorithm 3: Bayesian Regime Classifier
+library("Algo3Bayesian", overlay=false)
+
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/VolumeAnalysis/1 as vol_lib
+import redshad0ww/TrendDetection/1 as trend_lib
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+export type Algo3Result
+    float score
+    string pattern
+    string regime
+    float priorProbability
+    float posteriorProbability
+    float confidenceBoost
+
+// ============================================================================
+// SIMPLIFIED VERSION (for V1)
+// ============================================================================
+
+export calculateSimple(int volumeLookback, float volumeMultiplier, float efficiencyMultiplier) =>
+    var Algo3Result result = Algo3Result.new()
+
+    // Get regime from library
+    regimeData = regime_lib.detectRegime(14, 50)
+    trendData = trend_lib.detectADXTrend(14, 25.0, 35.0)
+
+    // Get volume metrics
+    volMetrics = vol_lib.calculateVolumeMetrics(volumeLookback)
+
+    // Feature detection
+    highVolume = volMetrics.relativeVolume > volumeMultiplier
+    highEfficiency = volMetrics.efficiencyRatio > efficiencyMultiplier
+
+    // Regime-based priors
+    priorProbability = 0.20
+    regimeName = ""
+    if regimeData.isLowVol and not trendData.isTrending
+        priorProbability := 0.40
+        regimeName := "RangingLowVol"
+    else if regimeData.isLowVol and trendData.isTrending
+        priorProbability := 0.30
+        regimeName := "TrendLowVol"
+    else if regimeData.isHighVol and not trendData.isTrending
+        priorProbability := 0.25
+        regimeName := "RangingHighVol"
+    else if regimeData.isHighVol and trendData.isTrending
+        priorProbability := 0.15
+        regimeName := "TrendHighVol"
+    else
+        priorProbability := 0.20
+        regimeName := "Normal"
+
+    // Simple Bayesian scoring
+    likelihood = 0.5
+    if highVolume
+        likelihood := likelihood * 0.7
+    if highEfficiency
+        likelihood := likelihood * 0.8
+
+    bayesianScore = priorProbability * likelihood * 200.0
+
+    score = math.min(100, bayesianScore)
+
+    result.score := score
+    result.pattern := "MIXED"
+    result.regime := regimeName
+    result.priorProbability := priorProbability
+    result.posteriorProbability := priorProbability
+    result.confidenceBoost := 0.0
+
+    result
+
+// ============================================================================
+// ENHANCED VERSION (for V2 - proper Bayesian)
+// ============================================================================
+
+export calculateEnhanced(int volumeLookback, float volumeMultiplier, float efficiencyMultiplier) =>
+    var Algo3Result result = Algo3Result.new()
+
+    // Get regime from library
+    regimeData = regime_lib.detectRegime(14, 50)
+    trendData = trend_lib.detectADXTrend(14, 25.0, 35.0)
+
+    // Get volume metrics
+    volMetrics = vol_lib.calculateVolumeMetrics(volumeLookback)
+
+    // Feature detection
+    highVolume = volMetrics.relativeVolume > volumeMultiplier
+    highEfficiency = volMetrics.efficiencyRatio > efficiencyMultiplier
+
+    // Regime-based priors
+    priorProbability = 0.20
+    regimeName = ""
+    if regimeData.isLowVol and not trendData.isTrending
+        priorProbability := 0.40
+        regimeName := "RangingLowVol"
+    else if regimeData.isLowVol and trendData.isTrending
+        priorProbability := 0.30
+        regimeName := "TrendLowVol"
+    else if regimeData.isHighVol and not trendData.isTrending
+        priorProbability := 0.25
+        regimeName := "RangingHighVol"
+    else if regimeData.isHighVol and trendData.isTrending
+        priorProbability := 0.15
+        regimeName := "TrendHighVol"
+    else
+        priorProbability := 0.20
+        regimeName := "Normal"
+
+    // Proper Bayesian posterior - UNIFORM likelihoods (V2 style)
+    likelihoodInstitutional = 1.0
+    if highVolume
+        likelihoodInstitutional := likelihoodInstitutional * 0.70
+    if highEfficiency
+        likelihoodInstitutional := likelihoodInstitutional * 0.75
+
+    likelihoodRetail = 1.0
+    if highVolume
+        likelihoodRetail := likelihoodRetail * 0.30
+    if highEfficiency
+        likelihoodRetail := likelihoodRetail * 0.25
+
+    // Calculate posterior
+    priorRetail = 1.0 - priorProbability
+    numerator = likelihoodInstitutional * priorProbability
+    denominator = (likelihoodInstitutional * priorProbability) + (likelihoodRetail * priorRetail)
+
+    posteriorProbability = math_lib.safeDivide(numerator, denominator, priorProbability)
+
+    // Confidence boost
+    confidenceBoost = 0.0
+    if highVolume and highEfficiency
+        confidenceBoost := 10.0
+
+    score = math.min(100, (posteriorProbability * 100.0) + confidenceBoost)
+
+    pattern = highVolume and highEfficiency ? "ACCUM" : "MIXED"
+
+    result.score := score
+    result.pattern := pattern
+    result.regime := regimeName
+    result.priorProbability := priorProbability
+    result.posteriorProbability := posteriorProbability
+    result.confidenceBoost := confidenceBoost
+
+    result
+
+// ============================================================================
+// ULTIMATE VERSION (for V3 - regime-specific likelihoods)
+// ============================================================================
+
+export calculateUltimate(int volumeLookback, float volumeMultiplier, float efficiencyMultiplier) =>
+    var Algo3Result result = Algo3Result.new()
+
+    // Get regime from library
+    regimeData = regime_lib.detectRegime(14, 50)
+    trendData = trend_lib.detectADXTrend(14, 25.0, 35.0)
+
+    // Get volume metrics
+    volMetrics = vol_lib.calculateVolumeMetrics(volumeLookback)
+
+    // Feature detection
+    highVolume = volMetrics.relativeVolume > volumeMultiplier
+    highEfficiency = volMetrics.efficiencyRatio > efficiencyMultiplier
+
+    // Regime-based priors
+    priorProbability = 0.20
+    regimeName = ""
+    if regimeData.isLowVol and not trendData.isTrending
+        priorProbability := 0.40
+        regimeName := "RangingLowVol"
+    else if regimeData.isLowVol and trendData.isTrending
+        priorProbability := 0.30
+        regimeName := "TrendLowVol"
+    else if regimeData.isHighVol and not trendData.isTrending
+        priorProbability := 0.25
+        regimeName := "RangingHighVol"
+    else if regimeData.isHighVol and trendData.isTrending
+        priorProbability := 0.15
+        regimeName := "TrendHighVol"
+    else
+        priorProbability := 0.20
+        regimeName := "Normal"
+
+    // REGIME-SPECIFIC LIKELIHOODS (from OLD)
+    likelihoodInstitutional = 1.0
+    likelihoodRetail = 1.0
+
+    if regimeName == "RangingLowVol"
+        // Optimal regime - institutions prefer this
+        if highVolume
+            likelihoodInstitutional := likelihoodInstitutional * 0.75
+            likelihoodRetail := likelihoodRetail * 0.30
+        if highEfficiency
+            likelihoodInstitutional := likelihoodInstitutional * 0.80
+            likelihoodRetail := likelihoodRetail * 0.25
+    else if regimeName == "TrendHighVol"
+        // High volatility trending - different patterns
+        if highVolume
+            likelihoodInstitutional := likelihoodInstitutional * 0.85
+            likelihoodRetail := likelihoodRetail * 0.60
+        if highEfficiency
+            likelihoodInstitutional := likelihoodInstitutional * 0.60
+            likelihoodRetail := likelihoodRetail * 0.40
+    else
+        // Default/other regimes
+        if highVolume
+            likelihoodInstitutional := likelihoodInstitutional * 0.70
+            likelihoodRetail := likelihoodRetail * 0.40
+        if highEfficiency
+            likelihoodInstitutional := likelihoodInstitutional * 0.75
+            likelihoodRetail := likelihoodRetail * 0.35
+
+    // Calculate posterior
+    priorRetail = 1.0 - priorProbability
+    numerator = likelihoodInstitutional * priorProbability
+    denominator = (likelihoodInstitutional * priorProbability) + (likelihoodRetail * priorRetail)
+
+    posteriorProbability = math_lib.safeDivide(numerator, denominator, priorProbability)
+
+    // Confidence boost
+    confidenceBoost = 0.0
+    if highVolume and highEfficiency
+        confidenceBoost := 10.0
+
+    score = math.min(100, (posteriorProbability * 100.0) + confidenceBoost)
+
+    pattern = highVolume and highEfficiency ? "ACCUM" : "MIXED"
+
+    result.score := score
+    result.pattern := pattern
+    result.regime := regimeName
+    result.priorProbability := priorProbability
+    result.posteriorProbability := posteriorProbability
+    result.confidenceBoost := confidenceBoost
+
+    result

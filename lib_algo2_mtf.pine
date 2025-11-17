@@ -1,0 +1,183 @@
+//@version=5
+// @description Library for Algorithm 2: Multi-Timeframe Convergence Detection
+library("Algo2MTF", overlay=false)
+
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/VolumeAnalysis/1 as vol_lib
+import redshad0ww/TrendDetection/1 as trend_lib
+import redshad0ww/MTFUtils/1 as mtf_lib
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+export type Algo2Result
+    float score
+    string pattern
+    float convergenceScore
+    float buildingScore
+    float priceActionScore
+    float trendScore
+    float regimeScore
+
+// ============================================================================
+// SIMPLIFIED VERSION (for V1)
+// ============================================================================
+
+export calculateSimple(int volumeLookback, float volumeThreshold) =>
+    var Algo2Result result = Algo2Result.new()
+
+    // Get higher timeframes
+    higherTF1 = mtf_lib.getHigherTimeframe(timeframe.period)
+    higherTF2 = mtf_lib.getSecondHigherTimeframe(timeframe.period)
+
+    // Current TF volume
+    volMetrics = vol_lib.calculateVolumeMetrics(volumeLookback)
+    currentRelVol = volMetrics.relativeVolume
+
+    // HTF volume
+    [htf1Volume, htf1AvgVolume] = request.security(syminfo.tickerid, higherTF1,
+         [volume, ta.sma(volume, volumeLookback)], lookahead=barmerge.lookahead_off)
+    [htf2Volume, htf2AvgVolume] = request.security(syminfo.tickerid, higherTF2,
+         [volume, ta.sma(volume, volumeLookback)], lookahead=barmerge.lookahead_off)
+
+    htf1RelVol = math_lib.safeDivide(htf1Volume, htf1AvgVolume, 1.0)
+    htf2RelVol = math_lib.safeDivide(htf2Volume, htf2AvgVolume, 1.0)
+
+    // Simple convergence scoring
+    convergenceScore = 0.0
+    if currentRelVol > volumeThreshold and htf1RelVol > volumeThreshold and htf2RelVol > volumeThreshold
+        convergenceScore := 100.0
+    else if (currentRelVol > volumeThreshold and htf1RelVol > volumeThreshold) or
+         (htf1RelVol > volumeThreshold and htf2RelVol > volumeThreshold)
+        convergenceScore := 65.0
+    else if currentRelVol > volumeThreshold or htf1RelVol > volumeThreshold
+        convergenceScore := 30.0
+
+    result.score := convergenceScore
+    result.pattern := "MIXED"
+    result.convergenceScore := convergenceScore
+    result.buildingScore := 0.0
+    result.priceActionScore := 0.0
+    result.trendScore := 0.0
+    result.regimeScore := 0.0
+
+    result
+
+// ============================================================================
+// ENHANCED VERSION (for V2)
+// ============================================================================
+
+export calculateEnhanced(int volumeLookback, float volumeThreshold) =>
+    var Algo2Result result = Algo2Result.new()
+
+    // Get higher timeframes
+    higherTF1 = mtf_lib.getHigherTimeframe(timeframe.period)
+    higherTF2 = mtf_lib.getSecondHigherTimeframe(timeframe.period)
+
+    // Current TF volume
+    volMetrics = vol_lib.calculateVolumeMetrics(volumeLookback)
+    currentRelVol = volMetrics.relativeVolume
+
+    // HTF volume with price data
+    [htf1Volume, htf1AvgVolume, htf1Close, htf1High, htf1Low] = request.security(syminfo.tickerid, higherTF1,
+         [volume, ta.sma(volume, volumeLookback), close, high, low], lookahead=barmerge.lookahead_off)
+    [htf2Volume, htf2AvgVolume] = request.security(syminfo.tickerid, higherTF2,
+         [volume, ta.sma(volume, volumeLookback)], lookahead=barmerge.lookahead_off)
+
+    htf1RelVol = math_lib.safeDivide(htf1Volume, htf1AvgVolume, 1.0)
+    htf2RelVol = math_lib.safeDivide(htf2Volume, htf2AvgVolume, 1.0)
+
+    // Convergence scoring (0-40 pts)
+    tfCount = 0
+    if currentRelVol > volumeThreshold
+        tfCount := tfCount + 1
+    if htf1RelVol > volumeThreshold
+        tfCount := tfCount + 1
+    if htf2RelVol > volumeThreshold
+        tfCount := tfCount + 1
+
+    convergenceScore = tfCount == 3 ? 40.0 : tfCount == 2 ? 25.0 : tfCount == 1 ? 10.0 : 0.0
+
+    // Building pattern detection (0-20 pts)
+    buildingScore = 0.0
+    if htf2RelVol > 1.0 and htf1RelVol > htf2RelVol and currentRelVol > htf1RelVol
+        buildingScore := 20.0
+    else if htf1RelVol > 1.0 and currentRelVol > htf1RelVol
+        buildingScore := 12.0
+    else if currentRelVol > 1.3 and htf1RelVol > 1.0
+        buildingScore := 6.0
+
+    // Price action scoring (0-30 pts)
+    priceRange = high - low
+    closePosition = math_lib.safeDivide(close - low, priceRange, 0.5)
+
+    priceActionScore = 0.0
+    pattern = "MIXED"
+    if priceRange < ta.sma(priceRange, 20) and closePosition >= 0.35 and closePosition <= 0.65
+        priceActionScore := 30.0
+        pattern := "ACCUM"
+    else if priceRange > ta.sma(priceRange, 20) * 1.2 and (closePosition > 0.7 or closePosition < 0.3)
+        priceActionScore := 25.0
+        pattern := "DISTR"
+    else
+        priceActionScore := 10.0
+
+    // Trend scoring (0-10 pts)
+    [isUptrend, isDowntrend, isRanging] = trend_lib.detectEMATrend(20, 50, 200)
+    trendScore = isUptrend or isDowntrend ? 10.0 : 0.0
+
+    totalScore = math.min(100, convergenceScore + buildingScore + priceActionScore + trendScore)
+
+    result.score := totalScore
+    result.pattern := pattern
+    result.convergenceScore := convergenceScore
+    result.buildingScore := buildingScore
+    result.priceActionScore := priceActionScore
+    result.trendScore := trendScore
+    result.regimeScore := 0.0
+
+    result
+
+// ============================================================================
+// ULTIMATE VERSION (for V3 with regime scoring)
+// ============================================================================
+
+export calculateUltimate(int volumeLookback, float volumeThreshold, bool useRegimeFilter, int atrLength, int atrLookback) =>
+    var Algo2Result result = Algo2Result.new()
+
+    // Start with enhanced calculation
+    enhancedResult = calculateEnhanced(volumeLookback, volumeThreshold)
+
+    // Add regime scoring
+    regimeScore = 0.0
+    if useRegimeFilter
+        currentATR = ta.atr(atrLength)
+        avgATR = ta.sma(ta.atr(atrLength), atrLookback)
+        atrRatio = math_lib.safeDivide(currentATR, avgATR, 1.0)
+
+        isHighVol = atrRatio > 1.3
+        isLowVol = atrRatio < 0.7
+
+        // Transition detection
+        atrChange = math.abs(atrRatio - atrRatio[5])
+        isTransitioning = atrChange > 0.2
+
+        if isTransitioning
+            regimeScore := 5.0
+        else if isLowVol
+            regimeScore := 10.0
+        else if not isHighVol and not isLowVol
+            regimeScore := 7.0
+
+    totalScore = math.min(100, enhancedResult.score + regimeScore)
+
+    result.score := totalScore
+    result.pattern := enhancedResult.pattern
+    result.convergenceScore := enhancedResult.convergenceScore
+    result.buildingScore := enhancedResult.buildingScore
+    result.priceActionScore := enhancedResult.priceActionScore
+    result.trendScore := enhancedResult.trendScore
+    result.regimeScore := regimeScore
+
+    result
