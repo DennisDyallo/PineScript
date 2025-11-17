@@ -18,12 +18,12 @@ minProminence = input.float(0.02, "Minimum Prominence %", minval=0.01, maxval=0.
 
 // Clustering Settings
 clusterEpsilon = input.float(0.015, "Cluster Tolerance %", minval=0.005, maxval=0.05, step=0.005, group="Clustering", tooltip="Maximum distance between levels to cluster (1.5% default)")
-minClusterSize = input.int(2, "Minimum Cluster Size", minval=1, maxval=5, group="Clustering", tooltip="Minimum touches to form strong S/R level")
+minClusterSize = input.int(1, "Minimum Cluster Size", minval=1, maxval=5, group="Clustering", tooltip="Minimum touches to form S/R level (1=single swing points, 2+=confirmed levels)")
 
 // Temporal Decay
-decayRate = input.float(0.98, "Temporal Decay Rate", minval=0.85, maxval=0.995, step=0.005, group="Temporal Decay", tooltip="Exponential decay per bar (0.98 = 2% decay, higher = slower decay)")
+decayRate = input.float(0.992, "Temporal Decay Rate", minval=0.85, maxval=0.998, step=0.002, group="Temporal Decay", tooltip="Exponential decay per bar (0.992 = 0.8% decay, higher = slower decay)")
 recentBoostBars = input.int(20, "Recent Activity Boost Bars", minval=10, maxval=50, group="Temporal Decay", tooltip="Boost strength if touched within this many bars")
-useDistancePenalty = input.bool(true, "Enable Distance Penalty", group="Temporal Decay", tooltip="Reduce strength for levels far from current price (disable for volatile stocks)")
+useDistancePenalty = input.bool(false, "Enable Distance Penalty", group="Temporal Decay", tooltip="Reduce strength for levels far from current price (disable for volatile stocks)")
 
 // Confluence Detection
 enableFibonacci = input.bool(true, "Enable Fibonacci Confluence", group="Confluence", tooltip="Check alignment with Fibonacci retracement levels")
@@ -32,7 +32,7 @@ enablePsychological = input.bool(true, "Enable Psychological Levels", group="Con
 fibLookback = input.int(100, "Fibonacci Lookback", minval=50, maxval=300, group="Confluence", tooltip="Bars for Fibonacci swing calculation")
 
 // Strength Filtering
-minStrength = input.int(40, "Minimum Strength to Display", minval=20, maxval=80, group="Display", tooltip="Only show S/R levels above this strength score (lower for volatile stocks)")
+minStrength = input.int(30, "Minimum Strength to Display", minval=10, maxval=80, group="Display", tooltip="Only show S/R levels above this strength score (lower for volatile stocks)")
 maxLevels = input.int(10, "Maximum Levels to Display", minval=5, maxval=20, group="Display", tooltip="Maximum number of S/R levels to show")
 showLabels = input.bool(true, "Show Strength Labels", group="Display")
 showZones = input.bool(false, "Show S/R Zones (instead of lines)", group="Display", tooltip="Display as shaded zones instead of lines")
@@ -267,7 +267,7 @@ calculateConfluence(price) =>
 // Function to calculate level strength with all factors
 calculateStrength(price, touchCount, mostRecentBar, levelType) =>
     // Base strength from touch count (more touches = stronger)
-    baseStrength = 30 + (touchCount - 1) * 15  // 30 for first touch, +15 for each additional
+    baseStrength = 50 + (touchCount - 1) * 20  // 50 for first touch, +20 for each additional
 
     // Temporal decay (recent levels stronger)
     barsAgo = bar_index - mostRecentBar
