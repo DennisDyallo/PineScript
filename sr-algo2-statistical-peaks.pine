@@ -17,12 +17,14 @@ swingRightBars = input.int(10, "Swing Detection - Right Bars", minval=5, maxval=
 minProminence = input.float(0.02, "Minimum Prominence %", minval=0.01, maxval=0.10, step=0.01, group="Swing Detection", tooltip="Minimum price move % to qualify as significant swing")
 
 // Clustering Settings
-clusterEpsilon = input.float(0.015, "Cluster Tolerance %", minval=0.005, maxval=0.05, step=0.005, group="Clustering", tooltip="Maximum distance between levels to cluster (1.5% default)")
-minClusterSize = input.int(1, "Minimum Cluster Size", minval=1, maxval=5, group="Clustering", tooltip="Minimum touches to form S/R level (1=single swing points, 2+=confirmed levels)")
+useATRRelativeEpsilon = input.bool(true, "Use ATR-Relative Clustering", group="Clustering", tooltip="Adapt cluster tolerance to volatility (recommended)")
+manualEpsilon = input.float(0.015, "Manual Cluster Tolerance %", minval=0.005, maxval=0.05, step=0.005, group="Clustering", tooltip="Used when ATR-relative disabled")
+atrEpsilonMultiplier = input.float(1.5, "ATR Epsilon Multiplier", minval=0.5, maxval=3.0, step=0.1, group="Clustering", tooltip="Cluster tolerance = ATR × this multiplier")
+minClusterSize = input.int(2, "Minimum Cluster Size", minval=1, maxval=5, group="Clustering", tooltip="Minimum touches to form S/R level (2=confirmed, 1=all swing points)")
 
 // Temporal Decay
-decayRate = input.float(0.992, "Temporal Decay Rate", minval=0.85, maxval=0.998, step=0.002, group="Temporal Decay", tooltip="Exponential decay per bar (0.992 = 0.8% decay, higher = slower decay)")
-recentBoostBars = input.int(20, "Recent Activity Boost Bars", minval=10, maxval=50, group="Temporal Decay", tooltip="Boost strength if touched within this many bars")
+decayRate = input.float(0.9942, "Temporal Decay Rate", minval=0.85, maxval=0.998, step=0.0002, group="Temporal Decay", tooltip="Exponential decay per bar (0.9942 = 120-bar half-life per research)")
+recentBoostBars = input.int(15, "Recent Activity Boost Bars", minval=10, maxval=50, group="Temporal Decay", tooltip="Boost strength if touched within this many bars")
 useDistancePenalty = input.bool(false, "Enable Distance Penalty", group="Temporal Decay", tooltip="Reduce strength for levels far from current price (disable for volatile stocks)")
 
 // Confluence Detection
@@ -55,7 +57,11 @@ isLowVol = atrRatio < 0.7
 isNormalVol = not isHighVol and not isLowVol
 
 regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
-regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85  // Boost in low vol, reduce in high vol
+regimeMultiplier = isLowVol ? 1.20 : isNormalVol ? 1.0 : 0.80  // Boost in low vol, reduce in high vol (0.80 matches research)
+
+// Calculate ATR-relative epsilon for clustering
+atrPercent = currentATR / close
+clusterEpsilon = useATRRelativeEpsilon ? atrPercent * atrEpsilonMultiplier : manualEpsilon
 
 // ============================= SWING POINT DETECTION ========================
 
@@ -63,11 +69,13 @@ regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85  // Boost in low v
 pivotHigh = ta.pivothigh(high, swingLeftBars, swingRightBars)
 pivotLow = ta.pivotlow(low, swingLeftBars, swingRightBars)
 
-// Store swing points in arrays
+// Store swing points in arrays (added volume for weighting)
 var array<float> resistanceLevels = array.new_float()
 var array<int> resistanceBarIndices = array.new_int()
+var array<float> resistanceVolumes = array.new_float()
 var array<float> supportLevels = array.new_float()
 var array<int> supportBarIndices = array.new_int()
+var array<float> supportVolumes = array.new_float()
 
 // Lookback period for storing swing points
 maxSwingHistory = 200
@@ -85,14 +93,16 @@ if not na(pivotHigh)
     prominencePercent = prominence / pivotHigh
 
     if prominencePercent >= minProminence
-        // Add to resistance array
+        // Add to resistance array (including volume for weighting)
         array.push(resistanceLevels, pivotHigh)
         array.push(resistanceBarIndices, bar_index - swingRightBars)
+        array.push(resistanceVolumes, volume[swingRightBars])
 
         // Limit array size for performance
         if array.size(resistanceLevels) > maxSwingHistory
             array.shift(resistanceLevels)
             array.shift(resistanceBarIndices)
+            array.shift(resistanceVolumes)
 
 // Detect new swing lows (support)
 if not na(pivotLow)
@@ -101,30 +111,32 @@ if not na(pivotLow)
     prominencePercent = prominence / pivotLow
 
     if prominencePercent >= minProminence
-        // Add to support array
+        // Add to support array (including volume for weighting)
         array.push(supportLevels, pivotLow)
         array.push(supportBarIndices, bar_index - swingRightBars)
+        array.push(supportVolumes, volume[swingRightBars])
 
         // Limit array size
         if array.size(supportLevels) > maxSwingHistory
             array.shift(supportLevels)
             array.shift(supportBarIndices)
+            array.shift(supportVolumes)
 
 // ============================= CLUSTERING ALGORITHM =========================
 
-// Function to cluster nearby levels (DBSCAN-like approach)
-clusterLevels(array<float> levels, array<int> barIndices, string levelType) =>
+// Function to cluster nearby levels with volume weighting (DBSCAN-like approach)
+clusterLevels(array<float> levels, array<int> barIndices, array<float> volumes, string levelType) =>
     var array<float> clusterCenters = array.new_float()
-    var array<int> clusterCounts = array.new_int()
+    var array<float> clusterVolumeWeightedTouches = array.new_float()  // Changed to volume-weighted
     var array<int> clusterMostRecentBar = array.new_int()
 
     // Clear previous clusters
     array.clear(clusterCenters)
-    array.clear(clusterCounts)
+    array.clear(clusterVolumeWeightedTouches)
     array.clear(clusterMostRecentBar)
 
     if array.size(levels) == 0
-        [clusterCenters, clusterCounts, clusterMostRecentBar]
+        [clusterCenters, clusterVolumeWeightedTouches, clusterMostRecentBar]
     else
         // Track which points have been clustered
         var array<bool> visited = array.new_bool()
@@ -132,20 +144,27 @@ clusterLevels(array<float> levels, array<int> barIndices, string levelType) =>
         for i = 0 to array.size(levels) - 1
             array.push(visited, false)
 
+        // Calculate average volume for weighting
+        avgVolume = array.avg(volumes)
+
         // Cluster each point (with bounds safety)
         for i = 0 to array.size(levels) - 1
             if i < array.size(visited) and not array.get(visited, i)
                 currentLevel = array.get(levels, i)
                 currentBar = array.get(barIndices, i)
+                currentVolume = array.get(volumes, i)
 
                 // Find all neighbors within epsilon distance
                 var array<float> clusterMembers = array.new_float()
                 var array<int> clusterBars = array.new_int()
+                var array<float> clusterVolumes = array.new_float()
                 array.clear(clusterMembers)
                 array.clear(clusterBars)
+                array.clear(clusterVolumes)
 
                 array.push(clusterMembers, currentLevel)
                 array.push(clusterBars, currentBar)
+                array.push(clusterVolumes, currentVolume)
                 array.set(visited, i, true)
 
                 // Find neighbors (with bounds check)
@@ -158,31 +177,39 @@ clusterLevels(array<float> levels, array<int> barIndices, string levelType) =>
                             if distance <= clusterEpsilon
                                 array.push(clusterMembers, otherLevel)
                                 array.push(clusterBars, array.get(barIndices, j))
+                                array.push(clusterVolumes, array.get(volumes, j))
                                 array.set(visited, j, true)
 
-                // Calculate cluster center (average of members)
+                // Calculate cluster center and volume-weighted touches
                 if array.size(clusterMembers) >= minClusterSize
                     clusterCenter = array.avg(clusterMembers)
-                    clusterCount = array.size(clusterMembers)
                     mostRecentBar = array.max(clusterBars)
 
+                    // Volume-weighted touch count (sqrt to avoid over-weighting outliers)
+                    volumeWeightedTouches = 0.0
+                    for k = 0 to array.size(clusterVolumes) - 1
+                        touchVolume = array.get(clusterVolumes, k)
+                        volumeRatio = avgVolume > 0 ? touchVolume / avgVolume : 1.0
+                        weight = math.sqrt(volumeRatio)  // Sqrt to dampen extreme values
+                        volumeWeightedTouches += weight
+
                     array.push(clusterCenters, clusterCenter)
-                    array.push(clusterCounts, clusterCount)
+                    array.push(clusterVolumeWeightedTouches, volumeWeightedTouches)
                     array.push(clusterMostRecentBar, mostRecentBar)
 
-        [clusterCenters, clusterCounts, clusterMostRecentBar]
+        [clusterCenters, clusterVolumeWeightedTouches, clusterMostRecentBar]
 
 // Cluster resistance and support levels (ONLY ON LAST BAR for performance)
 var array<float> resistanceClusters = array.new_float()
-var array<int> resistanceCounts = array.new_int()
+var array<float> resistanceCounts = array.new_float()  // Now volume-weighted touches (float)
 var array<int> resistanceRecentBars = array.new_int()
 var array<float> supportClusters = array.new_float()
-var array<int> supportCounts = array.new_int()
+var array<float> supportCounts = array.new_float()  // Now volume-weighted touches (float)
 var array<int> supportRecentBars = array.new_int()
 
 if barstate.islast
-    [tempResClusters, tempResCounts, tempResBars] = clusterLevels(resistanceLevels, resistanceBarIndices, "resistance")
-    [tempSupClusters, tempSupCounts, tempSupBars] = clusterLevels(supportLevels, supportBarIndices, "support")
+    [tempResClusters, tempResCounts, tempResBars] = clusterLevels(resistanceLevels, resistanceBarIndices, resistanceVolumes, "resistance")
+    [tempSupClusters, tempSupCounts, tempSupBars] = clusterLevels(supportLevels, supportBarIndices, supportVolumes, "support")
 
     // Copy to var arrays
     array.clear(resistanceClusters)
@@ -227,40 +254,52 @@ isNearLevel(price, refLevel, tolerance) =>
     distance < tolerance
 
 // Function to check if level is psychological (round number)
+// Fixed: Multi-magnitude approach to catch $350, $500, etc.
 isPsychologicalLevel(price) =>
-    // Check if price is close to round numbers
-    significant_digits = math.floor(math.log10(price))
-    power = math.pow(10, significant_digits)
-    round_number = math.round(price / power) * power
+    magnitude = math.pow(10, math.floor(math.log10(price)))
 
-    distance = math.abs(price - round_number) / price
-    distance < 0.02  // Within 2%
+    // Test against multiple round number types at current magnitude
+    roundNumbers = array.new<float>()
+    array.push(roundNumbers, magnitude * 1.0)    // e.g., $100, $1000
+    array.push(roundNumbers, magnitude * 2.5)    // e.g., $250, $2500
+    array.push(roundNumbers, magnitude * 5.0)    // e.g., $500, $5000
+    array.push(roundNumbers, magnitude * 10.0)   // e.g., $1000, $10000
 
-// Function to calculate confluence bonus
+    isPsych = false
+    for i = 0 to array.size(roundNumbers) - 1
+        roundLevel = array.get(roundNumbers, i)
+        distance = math.abs(price - roundLevel) / price
+        if distance < 0.02  // Within 2%
+            isPsych := true
+            break
+
+    isPsych
+
+// Function to calculate confluence multiplier (FIXED: multiplicative not additive)
 calculateConfluence(price) =>
-    confluenceBonus = 0
+    confluenceMultiplier = 1.0  // Start at 1.0 (no bonus)
     confluenceCount = 0
 
-    // Check Fibonacci confluence
+    // Check Fibonacci confluence (+15% boost)
     if enableFibonacci and array.size(fibLevels) > 0
         for i = 0 to array.size(fibLevels) - 1
             if isNearLevel(price, array.get(fibLevels, i), 0.005)
-                confluenceBonus += 15
+                confluenceMultiplier += 0.15
                 confluenceCount += 1
 
-    // Check MA confluence
+    // Check MA confluence (+10% boost)
     if enableMovingAverages and array.size(maLevels) > 0
         for i = 0 to array.size(maLevels) - 1
             if isNearLevel(price, array.get(maLevels, i), 0.01)
-                confluenceBonus += 10
+                confluenceMultiplier += 0.10
                 confluenceCount += 1
 
-    // Check psychological level
+    // Check psychological level (+8% boost)
     if enablePsychological and isPsychologicalLevel(price)
-        confluenceBonus += 8
+        confluenceMultiplier += 0.08
         confluenceCount += 1
 
-    [confluenceBonus, confluenceCount]
+    [confluenceMultiplier, confluenceCount]
 
 // ============================= STRENGTH SCORING =============================
 
@@ -282,14 +321,14 @@ calculateStrength(price, touchCount, mostRecentBar, levelType) =>
                          (distance < 0.05 ? 1.0 : math.max(0.5, 1.0 - distance * 0.3)) :
                          1.0  // No distance penalty for volatile stocks
 
-    // Confluence bonus
-    [confluenceBonus, confluenceCount] = calculateConfluence(price)
+    // Confluence multiplier (FIXED: multiplicative model)
+    [confluenceMultiplier, confluenceCount] = calculateConfluence(price)
 
     // Regime adjustment
     regimeAdjustment = useRegimeFilter ? regimeMultiplier : 1.0
 
-    // Calculate final strength
-    finalStrength = (baseStrength * decayFactor * recentBoost * distanceMultiplier * regimeAdjustment) + confluenceBonus
+    // Calculate final strength (FIXED: confluence multiplies instead of adds)
+    finalStrength = baseStrength * decayFactor * recentBoost * distanceMultiplier * regimeAdjustment * confluenceMultiplier
 
     // Cap at 100
     strength = math.min(100, finalStrength)

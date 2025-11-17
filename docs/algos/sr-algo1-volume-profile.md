@@ -4,7 +4,7 @@
 
 **What it detects:** Support and resistance levels derived from volume distribution across price levels, identifying areas where the most trading activity occurred (institutional footprints)
 
-**Expected accuracy:** 75-85% for major S/R levels on daily/4H timeframes, 70-80% on intraday timeframes when properly configured
+**Expected accuracy:** 70-80% for POC on daily/4H timeframes, 60-70% for VAH/VAL, 65-73% for HVN when properly configured *(revised post-audit to reflect OHLCV data limitations)*
 
 **Best use case:** Identifying high-conviction price zones where institutional order flow concentrated, particularly effective for:
 - Finding the Point of Control (POC) - the single most important price level
@@ -171,7 +171,10 @@ Total: 100% of bar volume
 - **Open (25%):** Opening auctions typically highest volume period
 - **Close (35%):** Closing auctions have institutional rebalancing
 - **High/Low (20% each):** Extremes touched but not sustained
-- **Research basis:** Biais et al. (1999) documented U-shaped intraday volume (high at open/close)
+- **Research basis:** Based on empirical observation of opening/closing auction concentration (consistent with Biais et al. 1999 findings on U-shaped intraday volume)
+
+**Important Note on OHLC Overlap:**
+When OHLC prices overlap (doji bars, narrow ranges), volume concentrates at that price level, which may exceed the stated percentages. This is **intentional** and reflects the reality of tight-range accumulation. For example, a doji with Open = Close = $350 will allocate 60% (25% + 35%) of volume to the $350 bin, accurately representing that price concentrated trading activity
 
 ### Price Bin Construction
 
@@ -826,6 +829,8 @@ else:
 - Emotional trading overrides technical levels
 - Stop cascades common
 - Historical hit rate: 65-70%
+
+**Disclaimer:** The ±15% regime adjustment values are based on empirical observation and industry practice, not peer-reviewed research. Users should validate these values through backtesting on their specific instruments and market conditions
 
 ---
 
@@ -1699,28 +1704,30 @@ Solution:
 ### Realistic Accuracy Targets
 
 **Daily/Weekly Timeframes:**
-- POC Hold Rate: 75-85%
-- VAH/VAL Hold Rate: 65-75%
-- HVN Hold Rate: 68-78%
-- Profitable Trade Rate: 68-78% (accounting for slippage, early stops)
-- Profit Factor: 2.0-2.8 (mean reversion trades)
-- Max Drawdown: 10-18%
-
-**4H Timeframe:**
-- POC Hold Rate: 70-80%
-- VAH/VAL Hold Rate: 62-72%
-- HVN Hold Rate: 65-73%
-- Profitable Trade Rate: 65-73%
-- Profit Factor: 1.8-2.4
+- POC Hold Rate: 70-80% *(revised from 75-85% post-audit)*
+- VAH/VAL Hold Rate: 60-70% *(revised from 65-75%)*
+- HVN Hold Rate: 65-73% *(revised from 68-78%)*
+- Profitable Trade Rate: 65-75% (accounting for slippage, early stops)
+- Profit Factor: 1.8-2.5 (mean reversion trades)
 - Max Drawdown: 12-20%
 
+**4H Timeframe:**
+- POC Hold Rate: 65-75% *(revised from 70-80%)*
+- VAH/VAL Hold Rate: 58-68% *(revised from 62-72%)*
+- HVN Hold Rate: 62-70% *(revised from 65-73%)*
+- Profitable Trade Rate: 62-70%
+- Profit Factor: 1.6-2.2
+- Max Drawdown: 14-22%
+
 **1H Timeframe:**
-- POC Hold Rate: 65-75%
-- VAH/VAL Hold Rate: 58-68%
-- HVN Hold Rate: 60-70%
-- Profitable Trade Rate: 60-70%
-- Profit Factor: 1.5-2.2
-- Max Drawdown: 15-25%
+- POC Hold Rate: 60-70% *(revised from 65-75%)*
+- VAH/VAL Hold Rate: 55-65% *(revised from 58-68%)*
+- HVN Hold Rate: 58-68% *(revised from 60-70%)*
+- Profitable Trade Rate: 58-68%
+- Profit Factor: 1.4-2.0
+- Max Drawdown: 16-26%
+
+**Note:** Accuracy revised downward by 5-10% to reflect OHLCV data limitations compared to true tick-by-tick Volume Profile. See "Fundamental Limitations" section for details.
 
 ---
 

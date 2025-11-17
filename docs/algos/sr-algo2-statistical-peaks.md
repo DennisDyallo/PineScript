@@ -1,5 +1,22 @@
 # S/R Algorithm 2: Statistical Peak/Trough Detection with Clustering
 
+> **📋 Version:** 1.1.0 (2025-01-17)
+> **🔍 Audit Status:** ✅ Reviewed and Fixed
+> **📄 See Also:** [CHANGELOG-algo2.md](../../CHANGELOG-algo2.md) | [AUDIT-RESPONSE-algo2-statistical.md](AUDIT-RESPONSE-algo2-statistical.md)
+
+**⚠️ IMPORTANT - v1.1 Updates:**
+This documentation reflects v1.1 with critical fixes from research audit:
+- ✅ Fixed temporal decay rate (0.992 → 0.9942 for 120-bar half-life)
+- ✅ Fixed broken psychological level detection (multi-magnitude approach)
+- ✅ Fixed confluence scoring (additive → multiplicative model)
+- ✅ Added volume weighting to touch counts
+- ✅ Added ATR-relative clustering epsilon
+- ✅ Fixed regime multipliers (0.85 → 0.80 for high vol)
+
+See CHANGELOG for complete details.
+
+---
+
 ## Executive Summary
 
 **What it detects:** Support and resistance levels through statistical clustering of swing high/low points, with temporal decay weighting and multi-factor confluence analysis
@@ -1527,15 +1544,24 @@ Support and resistance levels are areas of interest, not exact prices. Price may
 
 ## Version History
 
-**v1.0** - Initial Release (2025-01-17)
+**v1.1** - Audit Response (2025-01-17)
+- 🔴 **CRITICAL FIX:** Temporal decay rate corrected (0.992 → 0.9942 for 120-bar half-life)
+- 🔴 **CRITICAL FIX:** Psychological level detection rewritten (multi-magnitude approach)
+- 🔴 **CRITICAL FIX:** Confluence scoring changed to multiplicative model (was additive)
+- ✨ **NEW:** Volume-weighted touch count (institutional detection)
+- ✨ **NEW:** ATR-relative clustering epsilon (auto-adapts to volatility)
+- 🔧 **FIX:** Regime multiplier corrected (high vol: 0.85 → 0.80)
+- 🔧 **FIX:** minClusterSize default changed (1 → 2 for proper clustering)
+- **Performance:** 70-80% expected accuracy (validated reasoning, not empirical)
+- **See:** [CHANGELOG-algo2.md](../../CHANGELOG-algo2.md) for complete details
+
+**v1.0** - Initial Release (2025-01-17) - DEPRECATED
 - DBSCAN-inspired clustering algorithm
 - Five-factor strength scoring
-- Temporal decay modeling (0.992 default)
-- Fibonacci, MA, psychological confluence detection
-- Regime-aware scoring (ATR-based volatility adjustment)
-- Adaptive distance penalty (toggle for volatile stocks)
-- Optimized for volatile stocks (MSTR, crypto, growth tech)
-- Performance: 70-80% accuracy on daily charts, 65-75% on 4H charts
+- Temporal decay modeling (0.992 - **INCORRECT**, fixed in v1.1)
+- Fibonacci, MA, psychological confluence detection (**broken**, fixed in v1.1)
+- Regime-aware scoring (ATR-based)
+- Known issues: Math errors, broken algorithms, missing volume data
 
 ---
 

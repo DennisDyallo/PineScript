@@ -201,47 +201,119 @@ getSecondHigherTimeframe(baseTF) =>
 
 ---
 
-## Future S/R Algorithms - Expected Duplications
+## ✅ COMPLETED: S/R Algorithms - Actual Duplications
 
-### S/R Algorithm 1: Volume Profile Detection
-**Will Duplicate:**
-- ✅ Regime detection (ATR-based)
+### S/R Algorithm 1: Volume Profile Detection (sr-algo1-volume-profile.pine) ✅
+**File**: `sr-algo1-volume-profile.pine` (380 lines)
+
+**Duplicated Components:**
+- ✅ Regime detection (ATR-based) - lines 52-60
+- ✅ Volume calculations - lines 88-94
+- ✅ NA protection patterns - throughout
+
+**New Unique Code:**
+- Volume-at-price distribution with 30-60 bins
+- POC/VAH/VAL calculations (70% value area)
+- HVN/LVN detection using percentiles
+- Touch count and rejection analysis
+- Dynamic strength scoring with 6 factors
+
+**Target Accuracy**: 75-85%
+
+---
+
+### S/R Algorithm 2: Statistical Peak/Trough Detection (sr-algo2-statistical-peaks.pine) ✅
+**File**: `sr-algo2-statistical-peaks.pine` (355 lines)
+
+**Duplicated Components:**
+- ✅ Regime detection (ATR-based) - lines 48-57
+- ✅ NA protection patterns - throughout
+
+**New Unique Code:**
+- Native PineScript pivot detection (`ta.pivothigh/low`)
+- DBSCAN-like clustering algorithm
+- Temporal decay scoring (exponential)
+- Confluence detection (Fibonacci, MAs, psychological levels)
+- 200-bar swing history with prominence filtering
+
+**Target Accuracy**: 70-80%
+
+---
+
+### S/R Algorithm 3: Multi-Timeframe Confluence (sr-algo3-mtf-confluence.pine) ✅
+**File**: `sr-algo3-mtf-confluence.pine` (405 lines)
+
+**Duplicated Components:**
+- ✅ Multi-timeframe helper functions - lines 48-95
+- ✅ Regime detection - lines 97-105
+- ✅ NA protection patterns - throughout
+
+**New Unique Code:**
+- Auto-detect 3 timeframes (current + 2 higher)
+- Cross-timeframe level merging with 1.5% tolerance
+- Timeframe weighting (1.0x, 2.0x, 3.0x)
+- Confluence bonus for multi-TF alignment
+- Swing detection on HTF data
+
+**Target Accuracy**: 80-90%
+
+---
+
+### S/R Algorithm 4: Order Book Reconstruction (sr-algo4-order-book.pine) ✅
+**File**: `sr-algo4-order-book.pine` (345 lines)
+
+**Duplicated Components:**
+- ✅ Regime detection (ATR-based) - lines 52-60
+- ✅ Volume calculations - line 67
+- ✅ NA protection patterns - throughout
+
+**New Unique Code:**
+- Wick rejection analysis (upper/lower wicks)
+- Order volume estimation from wick size
+- Rejection clustering with 1% tolerance
+- Wick strength scoring (logarithmic)
+- 100-bar lookback with volume filtering
+
+**Target Accuracy**: 65-75% (experimental, indirect inference)
+
+---
+
+### S/R Ensemble (sr-ensemble.pine) ✅
+**File**: `sr-ensemble.pine` (475 lines)
+
+**Duplicated Components:**
+- ✅ Regime detection - lines 47-55
+- ✅ **ALL 4 S/R algorithm logic** (simplified versions)
 - ✅ Volume calculations
-- ✅ Volume efficiency calculations
+- ✅ MTF helper functions
 - ✅ NA protection patterns
 
 **New Unique Code:**
-- Volume-at-price distribution (bins)
-- POC/VAH/VAL calculations
-- HVN/LVN detection
+- Weighted ensemble merging (VP:30%, Stat:25%, MTF:35%, OB:10%)
+- Cross-algorithm level clustering
+- Agreement counting (4/4, 3/4, 2/4, 1/4)
+- Ensemble strength scoring with bonuses
+- Configurable algorithm selection
+
+**Target Accuracy**: 80-90% (ensemble validated levels)
+
+**⚠️ MAJOR DUPLICATION**: This indicator contains simplified implementations of ALL 4 S/R algorithms within a single file. Highest maintenance burden.
 
 ---
 
-### S/R Algorithm 2: Statistical Peak/Trough Detection
-**Will Duplicate:**
-- ✅ Regime detection (ATR-based)
-- ✅ ADX trend detection
-- ✅ EMA trend detection
-- ✅ Volume calculations
+### Summary of S/R Implementation
 
-**New Unique Code:**
-- Swing point detection (can use `ta.pivothigh()`/`ta.pivotlow()`)
-- Clustering algorithm (DBSCAN-like)
-- Temporal decay scoring
-- Confluence detection (Fibonacci, MAs, psychological levels)
+**Total New Indicators**: 5 (4 core + 1 ensemble)
+**Combined Lines**: ~1,960 lines of S/R detection code
+**Duplication Impact**:
+- Regime detection: Now in 9 files (was 4)
+- Volume calculations: Now in 7 files (was 4)
+- MTF functions: Now in 4 files (was 2)
 
----
-
-### S/R Algorithm 3: Multi-Timeframe Confluence
-**Will Duplicate:**
-- ✅ Multi-timeframe helper functions
-- ✅ Regime detection
-- ✅ Volume calculations
-
-**New Unique Code:**
-- Cross-timeframe level merging
-- Timeframe-weighted scoring
-- Confluence detection across timeframes
+**Maintenance Implications**:
+- Regime threshold changes require updates in 9 files
+- Volume calculation changes require updates in 7 files
+- sr-ensemble.pine is highest risk (contains all algorithm logic)
 
 ---
 
@@ -309,13 +381,20 @@ When modifying shared logic:
 
 ## Change Log
 
+### 2025-01-17 - S/R Algorithms Implementation Complete
+- ✅ Built 5 S/R detection indicators (4 core + 1 ensemble)
+- ✅ Added ~1,960 lines of S/R detection code
+- ✅ Documented all duplications from S/R algorithms
+- ✅ Updated duplication counts (regime: 9 files, volume: 7 files)
+- ✅ Identified sr-ensemble.pine as highest maintenance risk
+- ✅ Syntax validated all 5 indicators for PineScript v5 compatibility
+- **Impact**: Total indicators increased from 4 → 9 (125% increase)
+
 ### 2025-01-XX - Initial Tech Debt Documentation
 - Documented existing duplications across 4 institutional algorithms
 - Identified 6 major areas of code duplication
 - Established code standards and NA protection patterns
 - Created maintenance checklist
-
-### [Future entries as we build S/R algorithms]
 
 ---
 

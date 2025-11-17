@@ -466,11 +466,13 @@ if barstate.islast
     // Sort by strength
     if array.size(ensembleLevels) > 1
         for i = 0 to array.size(ensembleLevels) - 1
-            for j = 0 to array.size(ensembleLevels) - 2 - i
-                if array.get(ensembleLevels, j).ensembleStrength < array.get(ensembleLevels, j + 1).ensembleStrength
-                    temp = array.get(ensembleLevels, j)
-                    array.set(ensembleLevels, j, array.get(ensembleLevels, j + 1))
-                    array.set(ensembleLevels, j + 1, temp)
+            endIndex = array.size(ensembleLevels) - 2 - i
+            if endIndex >= 0
+                for j = 0 to endIndex
+                    if array.get(ensembleLevels, j).ensembleStrength < array.get(ensembleLevels, j + 1).ensembleStrength
+                        temp = array.get(ensembleLevels, j)
+                        array.set(ensembleLevels, j, array.get(ensembleLevels, j + 1))
+                        array.set(ensembleLevels, j + 1, temp)
 
 // ============================= VISUALIZATION ================================
 
