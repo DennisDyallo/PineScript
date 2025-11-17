@@ -63,11 +63,11 @@ export safeArrayGetInt(array<int> arr, int index, int defaultValue = 0) =>
 // VALUE VALIDATION
 // ============================================================================
 
-// @function Checks if a value is valid (not NA and not infinite)
+// @function Checks if a value is valid (not NA)
 // @param value The value to check
-// @returns True if value is valid, false if NA or infinite
+// @returns True if value is valid, false if NA
 export isValidValue(float value) =>
-    not na(value) and not math.isInfinite(value)
+    not na(value)
 
 // @function Clamps a value between min and max bounds
 // @param value The value to clamp
