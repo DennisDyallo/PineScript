@@ -177,6 +177,11 @@ higherTF2 = getSecondHigherTimeframe(timeframe.period)
 
 volumeLookback2 = input.int(20, "Volume Lookback", minval=10, maxval=100, group="Algo 2: MTF")
 mtfVolumeThreshold = input.float(1.5, "MTF Volume Threshold", minval=1.0, maxval=5.0, step=0.1, group="Algo 2: MTF")
+divergenceThreshold2 = input.float(0.2, "Base Divergence Threshold", minval=0.0, maxval=1.0, step=0.05, group="Algo 2: MTF")
+useAdaptiveThreshold2 = input.bool(true, "Use Adaptive Threshold", group="Algo 2: MTF")
+useRegimeFilter2 = input.bool(true, "Enable Regime Scoring", group="Algo 2: MTF")
+atrLength2 = input.int(14, "ATR Length", minval=7, maxval=50, group="Algo 2: MTF")
+atrLookback2 = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Algo 2: MTF")
 
 // Current timeframe with NA protection
 currentVolume2 = volume
@@ -189,6 +194,24 @@ htf1RelVol = htf1AvgVolume > 0 and not na(htf1AvgVolume) and not na(htf1Volume) 
 
 [htf2Volume, htf2AvgVolume] = request.security(syminfo.tickerid, higherTF2, [volume, ta.sma(volume, volumeLookback2)], lookahead=barmerge.lookahead_off)
 htf2RelVol = htf2AvgVolume > 0 and not na(htf2AvgVolume) and not na(htf2Volume) ? htf2Volume / htf2AvgVolume : 1.0
+
+// Regime detection
+currentATR2 = ta.atr(atrLength2)
+avgATR2 = ta.sma(ta.atr(atrLength2), atrLookback2)
+atrRatio2 = avgATR2 > 0 and not na(avgATR2) ? currentATR2 / avgATR2 : 1.0
+
+isHighVol2 = atrRatio2 > 1.3
+isLowVol2 = atrRatio2 < 0.7
+isNormalVol2 = not isHighVol2 and not isLowVol2
+
+// Adaptive divergence threshold
+adaptiveDivergence2 = divergenceThreshold2
+if useAdaptiveThreshold2
+    if isHighVol2
+        adaptiveDivergence2 := math.min(0.5, divergenceThreshold2 * 1.5)
+    else if isLowVol2
+        adaptiveDivergence2 := math.max(0.1, divergenceThreshold2 * 0.8)
+    adaptiveDivergence2
 
 // Scoring
 convergenceScore2 = 0.0
@@ -205,10 +228,10 @@ rangeRatio2 = avgRange2 > 0 and not na(avgRange2) ? currentRange2 / avgRange2 : 
 
 priceScore2 = 0.0
 algo2_pattern = ""
-if rangeRatio2 < 1.2 and convergenceScore2 > 20
+if rangeRatio2 < (1.0 + adaptiveDivergence2) and convergenceScore2 > 20
     priceScore2 := 30.0
     algo2_pattern := "Accumulation"
-else if rangeRatio2 > 1.2 and convergenceScore2 > 20
+else if rangeRatio2 > (1.0 + adaptiveDivergence2) and convergenceScore2 > 20
     priceScore2 := 20.0
     algo2_pattern := "Distribution"
 
@@ -217,7 +240,17 @@ htf1SMA = request.security(syminfo.tickerid, higherTF1, ta.sma(close, 50), looka
 htf1Trend = not na(htf1Close) and not na(htf1SMA) and htf1Close > htf1SMA
 trendScore2 = htf1Trend and convergenceScore2 > 20 ? 10.0 : 0.0
 
-algo2_score = enableAlgo2 ? math.min(100, convergenceScore2 + volumePatternScore2 + priceScore2 + trendScore2) : 0.0
+// Regime scoring (Component 5)
+regimeScore2 = 0.0
+if useRegimeFilter2
+    if isLowVol2
+        regimeScore2 := 15.0
+    else if isNormalVol2
+        regimeScore2 := 10.0
+    else if isHighVol2
+        regimeScore2 := 0.0
+
+algo2_score = enableAlgo2 ? math.min(100, convergenceScore2 + volumePatternScore2 + priceScore2 + trendScore2 + regimeScore2) : 0.0
 
 // ============================================================================
 // ALGORITHM 3: BAYESIAN REGIME CLASSIFIER
