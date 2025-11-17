@@ -1,0 +1,432 @@
+//@version=5
+indicator("S/R Algo 3: Multi-Timeframe Confluence", shorttitle="S/R MTF Confluence", overlay=true, max_lines_count=50, max_labels_count=20)
+
+// ============================================================================
+// S/R ALGORITHM 3: MULTI-TIMEFRAME CONFLUENCE DETECTOR
+// ============================================================================
+// Identifies strongest S/R levels by detecting alignment across timeframes
+// Levels appearing on multiple timeframes = institutional order clustering
+// Target Accuracy: 80-90% for major S/R levels
+// ============================================================================
+
+// ============================= INPUTS =======================================
+
+// Timeframe Settings
+manualTF1 = input.timeframe("", "Timeframe 1 (auto if empty)", group="Timeframes", tooltip="Leave empty for auto-detection")
+manualTF2 = input.timeframe("", "Timeframe 2 (auto if empty)", group="Timeframes", tooltip="Leave empty for auto-detection")
+manualTF3 = input.timeframe("", "Timeframe 3 (auto if empty)", group="Timeframes", tooltip="Leave empty for auto-detection")
+
+// Swing Detection per Timeframe
+swingLeftBars = input.int(10, "Swing Detection - Left Bars", minval=5, maxval=20, group="Swing Detection")
+swingRightBars = input.int(10, "Swing Detection - Right Bars", minval=5, maxval=20, group="Swing Detection")
+minProminence = input.float(0.02, "Minimum Prominence %", minval=0.01, maxval=0.10, step=0.01, group="Swing Detection")
+
+// Confluence Settings
+mergeTolerance = input.float(0.015, "Level Merge Tolerance %", minval=0.005, maxval=0.05, step=0.005, group="Confluence", tooltip="Distance to consider levels as 'same' across timeframes")
+minTimeframeCount = input.int(2, "Minimum Timeframes for Display", minval=1, maxval=3, group="Confluence", tooltip="Only show levels appearing on this many timeframes")
+
+// Strength Filtering
+minStrength = input.int(60, "Minimum Strength to Display", minval=40, maxval=85, group="Display")
+maxLevels = input.int(10, "Maximum Levels to Display", minval=5, maxval=20, group="Display")
+showLabels = input.bool(true, "Show Strength Labels", group="Display")
+showTimeframeCount = input.bool(true, "Show Timeframe Count in Labels", group="Display")
+
+// Regime Detection (duplicated from TECH-DEBT.md)
+useRegimeFilter = input.bool(true, "Enable Regime-Aware Scoring", group="Regime Detection")
+atrLength = input.int(14, "ATR Length", minval=7, maxval=50, group="Regime Detection")
+atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Regime Detection")
+
+// ============================= TIMEFRAME AUTO-DETECTION =====================
+// Duplicated from TECH-DEBT.md - Section 6: Multi-Timeframe Helper Functions
+
+getHigherTimeframe(baseTF) =>
+    tfInMinutes = timeframe.in_seconds(baseTF) / 60
+    string result = ""
+    if tfInMinutes <= 1
+        result := "5"
+    else if tfInMinutes <= 3
+        result := "15"
+    else if tfInMinutes <= 5
+        result := "30"
+    else if tfInMinutes <= 15
+        result := "60"
+    else if tfInMinutes <= 30
+        result := "60"
+    else if tfInMinutes <= 60
+        result := "240"
+    else if tfInMinutes <= 240
+        result := "D"
+    else if tfInMinutes < 1440
+        result := "D"
+    else if baseTF == "D"
+        result := "W"
+    else if baseTF == "W"
+        result := "M"
+    else
+        result := "M"
+    result
+
+getSecondHigherTimeframe(baseTF) =>
+    firstHTF = getHigherTimeframe(baseTF)
+    getHigherTimeframe(firstHTF)
+
+getThirdHigherTimeframe(baseTF) =>
+    secondHTF = getSecondHigherTimeframe(baseTF)
+    getHigherTimeframe(secondHTF)
+
+// Auto-detect or use manual timeframes
+currentTF = timeframe.period
+higherTF1 = manualTF1 == "" ? getHigherTimeframe(currentTF) : manualTF1
+higherTF2 = manualTF2 == "" ? getSecondHigherTimeframe(currentTF) : manualTF2
+higherTF3 = manualTF3 == "" ? getThirdHigherTimeframe(currentTF) : manualTF3
+
+// Timeframe weights (higher timeframes = more important)
+tfWeight1 = 1.0  // Current chart TF
+tfWeight2 = 2.0  // First higher TF
+tfWeight3 = 3.0  // Second higher TF
+
+// ============================= REGIME DETECTION =============================
+// Duplicated from TECH-DEBT.md - Section 1: Regime Detection Logic
+
+currentATR = ta.atr(atrLength)
+avgATR = ta.sma(ta.atr(atrLength), atrLookback)
+atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
+
+isHighVol = atrRatio > 1.3
+isLowVol = atrRatio < 0.7
+isNormalVol = not isHighVol and not isLowVol
+
+regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
+regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85
+
+// ============================= SWING DETECTION ACROSS TIMEFRAMES ============
+
+// Function to detect swings on a given timeframe (returns arrays of support/resistance)
+detectSwingsOnTimeframe(tf, weight) =>
+    // Request higher timeframe data
+    [tfHigh, tfLow, tfClose] = request.security(syminfo.tickerid, tf, [high, low, close], lookahead=barmerge.lookahead_off)
+
+    // Detect pivots (note: these happen on HTF bars, not every bar)
+    var array<float> tfResistance = array.new_float()
+    var array<float> tfSupport = array.new_float()
+
+    // On each bar, check for new pivots
+    // Use pivothigh/pivotlow on HTF data
+    pivotH = ta.pivothigh(tfHigh, swingLeftBars, swingRightBars)
+    pivotL = ta.pivotlow(tfLow, swingLeftBars, swingRightBars)
+
+    // Track recent swings (last 50)
+    maxHistory = 50
+
+    // Calculate ta.* functions OUTSIDE if-blocks for consistency (PineScript requirement)
+    leftMinResistance = ta.lowest(tfLow, swingLeftBars)[swingRightBars]
+    rightMinResistance = ta.lowest(tfLow, swingRightBars)
+    leftMaxSupport = ta.highest(tfHigh, swingLeftBars)[swingRightBars]
+    rightMaxSupport = ta.highest(tfHigh, swingRightBars)
+
+    if not na(pivotH)
+        // Check prominence
+        prominence = pivotH - math.max(leftMinResistance, rightMinResistance)
+        prominencePercent = prominence / pivotH
+
+        if prominencePercent >= minProminence
+            array.push(tfResistance, pivotH)
+            if array.size(tfResistance) > maxHistory
+                array.shift(tfResistance)
+
+    if not na(pivotL)
+        // Check prominence
+        prominence = math.min(leftMaxSupport, rightMaxSupport) - pivotL
+        prominencePercent = prominence / pivotL
+
+        if prominencePercent >= minProminence
+            array.push(tfSupport, pivotL)
+            if array.size(tfSupport) > maxHistory
+                array.shift(tfSupport)
+
+    [tfResistance, tfSupport]
+
+// Detect swings on current timeframe
+[currentResistance, currentSupport] = detectSwingsOnTimeframe(currentTF, tfWeight1)
+
+// Detect swings on higher timeframes
+[htf1Resistance, htf1Support] = detectSwingsOnTimeframe(higherTF1, tfWeight2)
+[htf2Resistance, htf2Support] = detectSwingsOnTimeframe(higherTF2, tfWeight3)
+
+// ============================= MERGE LEVELS ACROSS TIMEFRAMES ===============
+
+type MTFLevel
+    float price
+    float strength
+    int timeframeCount
+    string timeframes
+    string levelType
+    color levelColor
+    
+    // Collect all levels from all timeframes
+type TempLevel
+    float price
+    string timeframe
+    float weight
+    string levelType
+var array<MTFLevel> mtfLevels = array.new<MTFLevel>()
+
+// Function to merge nearby levels across all timeframes
+mergeAcrossTimeframes() =>
+    var array<MTFLevel> merged = array.new<MTFLevel>()
+    array.clear(merged)
+
+    var array<TempLevel> allLevels = array.new<TempLevel>()
+    array.clear(allLevels)
+
+    // Add current TF levels
+    if array.size(currentResistance) > 0
+        for i = 0 to array.size(currentResistance) - 1
+            temp = TempLevel.new(array.get(currentResistance, i), currentTF, tfWeight1, "R")
+            array.push(allLevels, temp)
+
+    if array.size(currentSupport) > 0
+        for i = 0 to array.size(currentSupport) - 1
+            temp = TempLevel.new(array.get(currentSupport, i), currentTF, tfWeight1, "S")
+            array.push(allLevels, temp)
+
+    // Add HTF1 levels
+    if array.size(htf1Resistance) > 0
+        for i = 0 to array.size(htf1Resistance) - 1
+            temp = TempLevel.new(array.get(htf1Resistance, i), higherTF1, tfWeight2, "R")
+            array.push(allLevels, temp)
+
+    if array.size(htf1Support) > 0
+        for i = 0 to array.size(htf1Support) - 1
+            temp = TempLevel.new(array.get(htf1Support, i), higherTF1, tfWeight2, "S")
+            array.push(allLevels, temp)
+
+    // Add HTF2 levels
+    if array.size(htf2Resistance) > 0
+        for i = 0 to array.size(htf2Resistance) - 1
+            temp = TempLevel.new(array.get(htf2Resistance, i), higherTF2, tfWeight3, "R")
+            array.push(allLevels, temp)
+
+    if array.size(htf2Support) > 0
+        for i = 0 to array.size(htf2Support) - 1
+            temp = TempLevel.new(array.get(htf2Support, i), higherTF2, tfWeight3, "S")
+            array.push(allLevels, temp)
+
+    // Now cluster/merge nearby levels
+    var array<bool> processed = array.new_bool()
+    array.clear(processed)
+    for i = 0 to array.size(allLevels) - 1
+        array.push(processed, false)
+
+    // Process each level
+    for i = 0 to array.size(allLevels) - 1
+        if not array.get(processed, i)
+            currentLevel = array.get(allLevels, i)
+            var array<TempLevel> cluster = array.new<TempLevel>()
+            array.clear(cluster)
+            array.push(cluster, currentLevel)
+            array.set(processed, i, true)
+
+            // Find all nearby levels
+            for j = i + 1 to array.size(allLevels) - 1
+                if not array.get(processed, j)
+                    otherLevel = array.get(allLevels, j)
+                    distance = math.abs(currentLevel.price - otherLevel.price) / currentLevel.price
+
+                    if distance <= mergeTolerance
+                        array.push(cluster, otherLevel)
+                        array.set(processed, j, true)
+
+            // Calculate merged level properties
+            if array.size(cluster) > 0
+                // Average price weighted by timeframe weight
+                totalWeight = 0.0
+                weightedPrice = 0.0
+                var array<string> uniqueTFs = array.new_string()
+                array.clear(uniqueTFs)
+
+                for k = 0 to array.size(cluster) - 1
+                    member = array.get(cluster, k)
+                    weightedPrice += member.price * member.weight
+                    totalWeight += member.weight
+
+                    // Track unique timeframes
+                    tfExists = false
+                    if array.size(uniqueTFs) > 0  // Safety check before loop
+                        for m = 0 to array.size(uniqueTFs) - 1
+                            if array.get(uniqueTFs, m) == member.timeframe
+                                tfExists := true
+                                break
+                    if not tfExists
+                        array.push(uniqueTFs, member.timeframe)
+
+                avgPrice = totalWeight > 0 ? weightedPrice / totalWeight : currentLevel.price
+                tfCount = array.size(uniqueTFs)
+
+                // Build timeframe list string
+                tfListString = ""
+                if array.size(uniqueTFs) > 0  // Safety check before loop
+                    for k = 0 to math.min(2, array.size(uniqueTFs) - 1)
+                        tfListString += array.get(uniqueTFs, k)
+                        if k < math.min(2, array.size(uniqueTFs) - 1)
+                            tfListString += ","
+
+                // Calculate strength
+                baseStrength = 50.0 + (totalWeight * 10.0)  // Weight contributes to strength
+
+                // Confluence bonus for multiple timeframes
+                confluenceBonus = tfCount == 3 ? 30.0 : tfCount == 2 ? 20.0 : 0.0
+
+                // Distance weighting
+                distance = math.abs(close - avgPrice) / close
+                distanceMultiplier = distance < 0.05 ? 1.0 : math.max(0.6, 1.0 - distance)
+
+                // Regime adjustment
+                regimeAdjustment = useRegimeFilter ? regimeMultiplier : 1.0
+
+                finalStrength = (baseStrength + confluenceBonus) * distanceMultiplier * regimeAdjustment
+                finalStrength := math.min(100, finalStrength)
+
+                // Color based on strength and timeframe count
+                levelColor = tfCount == 3 
+                  ? color.new(currentLevel.levelType == "R" ? color.red : color.green, 0) 
+                  : tfCount == 2 ? color.new(currentLevel.levelType == "R" ? color.orange : color.lime, 20) : color.new(color.gray, 40)
+
+                // Create merged level
+                if finalStrength >= minStrength and tfCount >= minTimeframeCount
+                    mtfLevel = MTFLevel.new(
+                         price = avgPrice,
+                         strength = finalStrength,
+                         timeframeCount = tfCount,
+                         timeframes = tfListString,
+                         levelType = currentLevel.levelType,
+                         levelColor = levelColor
+                     )
+                    array.push(merged, mtfLevel)
+
+    merged
+
+// Merge levels on last bar
+if barstate.islast
+    mtfLevels := mergeAcrossTimeframes()
+
+    // Sort by strength
+    if array.size(mtfLevels) > 1
+        for i = 0 to array.size(mtfLevels) - 1
+            endIndex = array.size(mtfLevels) - 2 - i
+            if endIndex >= 0
+                for j = 0 to endIndex
+                    if array.get(mtfLevels, j).strength < array.get(mtfLevels, j + 1).strength
+                        temp = array.get(mtfLevels, j)
+                        array.set(mtfLevels, j, array.get(mtfLevels, j + 1))
+                        array.set(mtfLevels, j + 1, temp)
+
+// ============================= VISUALIZATION ================================
+
+// Draw levels
+if barstate.islast and array.size(mtfLevels) > 0
+    for i = 0 to math.min(maxLevels - 1, array.size(mtfLevels) - 1)
+        level = array.get(mtfLevels, i)
+
+        // Draw line
+        lineWidth = level.timeframeCount == 3 ? 3 : level.timeframeCount == 2 ? 2 : 1
+
+        line.new(
+             bar_index - 100,
+             level.price,
+             bar_index + 20,
+             level.price,
+             color = level.levelColor,
+             width = lineWidth,
+             style = line.style_solid
+         )
+
+        // Draw label
+        if showLabels
+            labelText = level.levelType + " " + str.tostring(math.round(level.strength))
+            if showTimeframeCount
+                labelText += " (" + str.tostring(level.timeframeCount) + "TF)"
+
+            label.new(
+                 bar_index + 10,
+                 level.price,
+                 text = labelText,
+                 style = level.levelType == "R" ? label.style_label_down : label.style_label_up,
+                 color = level.levelColor,
+                 textcolor = color.white,
+                 size = level.timeframeCount == 3 ? size.normal : size.small,
+                 tooltip = "Timeframes: " + level.timeframes
+             )
+
+// ============================= INFO TABLE ===================================
+
+var table infoTable = table.new(position.top_right, 2, 10, border_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(infoTable, 0, 0, "S/R MTF Confluence",
+               text_color=color.white, bgcolor=color.new(color.blue, 30), text_size=size.normal)
+    table.merge_cells(infoTable, 0, 0, 1, 0)
+
+    // Timeframes analyzed
+    table.cell(infoTable, 0, 1, "Timeframes:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.merge_cells(infoTable, 0, 1, 1, 1)
+
+    table.cell(infoTable, 0, 2, "Current:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(infoTable, 1, 2, currentTF, text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+
+    table.cell(infoTable, 0, 3, "HTF1:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(infoTable, 1, 3, higherTF1, text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+
+    table.cell(infoTable, 0, 4, "HTF2:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(infoTable, 1, 4, higherTF2, text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+
+    // Stats
+    table.cell(infoTable, 0, 5, "Active Levels:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(infoTable, 1, 5, str.tostring(math.min(maxLevels, array.size(mtfLevels))),
+               text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    // Count by timeframe confluence
+    tf3Count = 0
+    tf2Count = 0
+    tf1Count = 0
+    for i = 0 to array.size(mtfLevels) - 1
+        level = array.get(mtfLevels, i)
+        if level.timeframeCount == 3
+            tf3Count += 1
+        else if level.timeframeCount == 2
+            tf2Count += 1
+        else
+            tf1Count += 1
+
+    table.cell(infoTable, 0, 6, "3-TF Levels:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(infoTable, 1, 6, str.tostring(tf3Count), text_color=color.lime, bgcolor=color.new(color.gray, 80), text_size=size.small)
+
+    table.cell(infoTable, 0, 7, "2-TF Levels:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(infoTable, 1, 7, str.tostring(tf2Count), text_color=color.yellow, bgcolor=color.new(color.gray, 80), text_size=size.small)
+
+    // Regime
+    table.cell(infoTable, 0, 8, "Regime:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    regimeColor = isLowVol ? color.green : isHighVol ? color.red : color.orange
+    table.cell(infoTable, 1, 8, regimeName + " (" + str.tostring(atrRatio, "#.##") + "x)",
+               text_color=regimeColor, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    // Settings
+    table.cell(infoTable, 0, 9, "Merge Tolerance:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    table.cell(infoTable, 1, 9, str.tostring(mergeTolerance * 100, "#.#") + "%",
+               text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+
+// ============================= ALERTS =======================================
+
+// Alert when price near 3-timeframe confluence level
+strongConfluenceNearby = false
+if array.size(mtfLevels) > 0
+    for i = 0 to array.size(mtfLevels) - 1
+        level = array.get(mtfLevels, i)
+        if level.timeframeCount == 3
+            distance = math.abs(close - level.price) / close
+            if distance < 0.01  // Within 1%
+                strongConfluenceNearby := true
+
+if strongConfluenceNearby and not strongConfluenceNearby[1]
+    alert("Price approaching 3-timeframe confluence S/R level on " + syminfo.ticker, alert.freq_once_per_bar_close)
