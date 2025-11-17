@@ -305,7 +305,7 @@ if debugMode
         table.cell(debugTable, 1, 4, str.tostring(rangeRatio, "#.##"), text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
 
         table.cell(debugTable, 0, 5, "Convergence:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
-        convergeText = convergenceScore == 40 ? "All 3 TF" : convergenceScore == 25 ? "2 TF" : convergenceScore == 10 ? "1 TF" : "None"
+        convergeText = convergenceScore == 35 ? "All 3 TF" : convergenceScore == 22 ? "2 TF" : convergenceScore == 9 ? "1 TF" : "None"
         table.cell(debugTable, 1, 5, convergeText, text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
 
 // ============================= ALERTS =======================================
@@ -319,5 +319,5 @@ if ta.crossunder(mtfScore, scoreThreshold)
     alert("MTF institutional activity ended on " + syminfo.ticker, alert.freq_once_per_bar_close)
 
 // All Timeframes Aligned (highest confidence)
-if convergenceScore == 40 and mtfScore > scoreThreshold and not (mtfScore[1] > scoreThreshold)
+if convergenceScore == 35 and mtfScore > scoreThreshold and not (mtfScore[1] > scoreThreshold)
     alert("VERY HIGH CONFIDENCE: All 3 timeframes show institutional activity on " + syminfo.ticker + " (" + patternLabel + ")", alert.freq_once_per_bar_close)

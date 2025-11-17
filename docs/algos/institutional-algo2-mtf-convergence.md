@@ -184,20 +184,21 @@ Bayesian posterior: ~85% probability institutional vs retail
 
 ## How The Algorithm Works
 
-### Four-Component Scoring System
+### Five-Component Scoring System
 
-The algorithm evaluates CURRENT closed bar across four dimensions:
+The algorithm evaluates CURRENT closed bar across five dimensions:
 
 ```
-Total MTF Score = Convergence Score (0-40 pts)
-                + Volume Pattern Score (0-20 pts)
-                + Price Action Score (0-30 pts)
+Total MTF Score = Convergence Score (0-35 pts)
+                + Volume Pattern Score (0-17 pts)
+                + Price Action Score (0-28 pts)
                 + Trend Confirmation Score (0-10 pts)
+                + Regime Score (0-10 pts)
 
-Clamped to [0, 100]
+Maximum: 100 points
 ```
 
-### Component 1: Volume Convergence Score (0-40 points)
+### Component 1: Volume Convergence Score (0-35 points)
 
 **Objective:** Detect synchronized volume increases across timeframes
 
@@ -217,13 +218,13 @@ Check thresholds:
 
 ```pinescript
 if ALL 3 timeframes > threshold:
-    Convergence Score = 40 points (MAXIMUM - very strong signal)
+    Convergence Score = 35 points (MAXIMUM - very strong signal)
 
 else if ANY 2 timeframes > threshold:
-    Convergence Score = 25 points (moderate signal)
+    Convergence Score = 22 points (moderate signal)
 
 else if ANY 1 timeframe > threshold:
-    Convergence Score = 10 points (weak signal)
+    Convergence Score = 9 points (weak signal)
 
 else:
     Convergence Score = 0 points (no activity)
@@ -231,9 +232,9 @@ else:
 
 **Why this works:**
 
-- **40 points (3 TF):** Probability of random convergence = 0.34% → High institutional probability
-- **25 points (2 TF):** Probability = 2.25% → Moderate institutional probability
-- **10 points (1 TF):** Probability = 15% → Could be noise, needs other confirmations
+- **35 points (3 TF):** Probability of random convergence = 0.34% → High institutional probability
+- **22 points (2 TF):** Probability = 2.25% → Moderate institutional probability
+- **9 points (1 TF):** Probability = 15% → Could be noise, needs other confirmations
 - **0 points:** Normal market conditions
 
 **Examples:**
@@ -243,22 +244,22 @@ Example 1: Perfect Convergence
 Current (1H): 2.1x average volume ✓
 HTF1 (4H): 1.8x average volume ✓
 HTF2 (Daily): 1.6x average volume ✓
-→ Convergence Score: 40/40
+→ Convergence Score: 35/35
 
 Example 2: Partial Convergence
 Current (1H): 1.7x average volume ✓
 HTF1 (4H): 1.6x average volume ✓
 HTF2 (Daily): 1.2x average volume ✗
-→ Convergence Score: 25/40
+→ Convergence Score: 22/35
 
 Example 3: Single Timeframe Spike (Noise)
 Current (1H): 2.5x average volume ✓
 HTF1 (4H): 1.1x average volume ✗
 HTF2 (Daily): 0.9x average volume ✗
-→ Convergence Score: 10/40 (likely noise)
+→ Convergence Score: 9/35 (likely noise)
 ```
 
-### Component 2: Volume Pattern Score - Building Campaign (0-20 points)
+### Component 2: Volume Pattern Score - Building Campaign (0-17 points)
 
 **Objective:** Detect early-stage institutional campaigns via volume cascade
 
@@ -270,13 +271,13 @@ HTF2 (Daily): 0.9x average volume ✗
 Building Campaign Pattern:
   HTF2 Relative Vol > HTF1 Relative Vol > Current Relative Vol
 
-AND Convergence Score > 20 (at least 2 TFs elevated)
+AND Convergence Score > 18 (at least 2 TFs elevated)
 
 If BOTH conditions met:
-    Volume Pattern Score = 20 points (building campaign detected)
+    Volume Pattern Score = 17 points (building campaign detected)
 
 Else if EITHER condition met (partial cascade):
-    Volume Pattern Score = 10 points (possible campaign)
+    Volume Pattern Score = 9 points (possible campaign)
 
 Else:
     Volume Pattern Score = 0 points
@@ -300,27 +301,27 @@ Example 1: Classic Building Campaign
 HTF2 (Daily): 2.0x volume ✓
 HTF1 (4H): 1.7x volume ✓
 Current (1H): 1.5x volume ✓
-Convergence: 40 pts (all 3 elevated)
+Convergence: 35 pts (all 3 elevated)
 Pattern: 2.0 > 1.7 > 1.5 ✓ CASCADE DETECTED
-→ Volume Pattern Score: 20/20
+→ Volume Pattern Score: 17/17
 → Interpretation: EARLY STAGE campaign, strong signal
 
 Example 2: Mature Campaign (Equal Distribution)
 HTF2 (Daily): 1.8x volume ✓
 HTF1 (4H): 1.8x volume ✓
 Current (1H): 1.9x volume ✓
-Convergence: 40 pts (all 3 elevated)
+Convergence: 35 pts (all 3 elevated)
 Pattern: No clear cascade (roughly equal)
-→ Volume Pattern Score: 0/20
+→ Volume Pattern Score: 0/17
 → Interpretation: MATURE campaign, already well-established
 
 Example 3: Partial Cascade (Weak Signal)
 HTF2 (Daily): 1.6x volume ✓
 HTF1 (4H): 1.4x volume ✗
 Current (1H): 1.2x volume ✗
-Convergence: 10 pts (only 1 TF)
+Convergence: 9 pts (only 1 TF)
 Pattern: 1.6 > 1.4 > 1.2 (cascade exists but weak)
-→ Volume Pattern Score: 0/20 (convergence too weak)
+→ Volume Pattern Score: 0/17 (convergence too weak)
 → Interpretation: Possible start, needs confirmation
 ```
 
@@ -329,7 +330,7 @@ Pattern: 1.6 > 1.4 > 1.2 (cascade exists but weak)
 - Mature campaigns (equal distribution) = **LATE detection** = Lower R:R
 - Algorithm rewards EARLY detection with higher scores
 
-### Component 3: Price Action Confirmation (0-30 points)
+### Component 3: Price Action Confirmation (0-28 points)
 
 **Objective:** Distinguish accumulation (compressed range) from distribution/breakout (expanded range)
 
@@ -346,31 +347,31 @@ Divergence Threshold = 0.2 (default, means ±20% from average)
 **Scoring Logic:**
 
 ```pinescript
-Pattern 1: ACCUMULATION (30 points)
+Pattern 1: ACCUMULATION (28 points)
 Conditions:
   - Range Ratio < (1.0 + Divergence Threshold)  // Range NOT expanded
-  - Convergence Score > 20  // At least 2 TFs elevated
+  - Convergence Score > 18  // At least 2 TFs elevated
 
 Interpretation: High volume + compressed range = Absorption
 Pattern Label: "Accumulation"
-Score: 30/30
+Score: 28/28
 
-Pattern 2: DISTRIBUTION/BREAKOUT (20 points)
+Pattern 2: DISTRIBUTION/BREAKOUT (19 points)
 Conditions:
   - Range Ratio > (1.0 + Divergence Threshold)  // Range IS expanded
-  - Convergence Score > 20  // At least 2 TFs elevated
+  - Convergence Score > 18  // At least 2 TFs elevated
 
 Interpretation: High volume + wide range = Distribution or Breakout
 Pattern Label: "Distribution/Breakout"
-Score: 20/30
+Score: 19/28
 
 Pattern 3: NEUTRAL (0 points)
 Conditions:
-  - Convergence Score ≤ 20  // Insufficient volume convergence
+  - Convergence Score ≤ 18  // Insufficient volume convergence
 
 Interpretation: No clear pattern
 Pattern Label: "Neutral"
-Score: 0/30
+Score: 0/28
 ```
 
 **Why this works:**
@@ -406,8 +407,8 @@ Price: $100.00 - $100.80 (0.8% range)
 Average Range: 1.0%
 Range Ratio: 0.8 / 1.0 = 0.8
 Divergence Check: 0.8 < 1.2 (1.0 + 0.2) ✓ COMPRESSED
-Convergence Score: 40 (all 3 TFs)
-→ Price Action Score: 30/30
+Convergence Score: 35 (all 3 TFs)
+→ Price Action Score: 28/28
 → Pattern: "Accumulation"
 → High conviction institutional absorption signal
 
@@ -416,14 +417,14 @@ Price: $100.00 - $102.50 (2.5% range)
 Average Range: 1.0%
 Range Ratio: 2.5 / 1.0 = 2.5
 Divergence Check: 2.5 > 1.2 (1.0 + 0.2) ✓ EXPANDED
-Convergence Score: 40 (all 3 TFs)
-→ Price Action Score: 20/30
+Convergence Score: 35 (all 3 TFs)
+→ Price Action Score: 19/28
 → Pattern: "Distribution/Breakout"
 → Moderate signal, needs directional confirmation
 
 Example 3: Neutral (No Convergence)
-Convergence Score: 10 (only 1 TF)
-→ Price Action Score: 0/30
+Convergence Score: 9 (only 1 TF)
+→ Price Action Score: 0/28
 → Pattern: "Neutral"
 → Insufficient activity, no signal
 ```
@@ -442,16 +443,12 @@ Convergence Score: 10 (only 1 TF)
 
 ```
 Trend Detection (HTF1 timeframe):
-  EMA20 = 20-period EMA
-  EMA50 = 50-period EMA
-  EMA200 = 200-period EMA
+  SMA = Simple Moving Average (length from settings, default 50)
 
 Uptrend Definition:
-  Close > EMA50
-  AND EMA20 > EMA50
-  AND EMA50 > EMA200
+  Close > SMA
 
-If Uptrend = TRUE and Convergence Score > 20:
+If Uptrend = TRUE and Convergence Score > 18:
     Trend Score = 10 points
 Else:
     Trend Score = 0 points
@@ -463,35 +460,119 @@ Institutional accumulation IN TREND is higher probability than counter-trend:
 
 ```
 Scenario 1: Trend-Aligned Accumulation
-HTF1: Strong uptrend (EMA cascade aligned)
+HTF1: Strong uptrend (Close > SMA)
 Pattern: Accumulation detected
-Convergence: 40 pts
+Convergence: 35 pts
 → Trend Score: 10/10
-→ Total potential: 40 + 20 + 30 + 10 = 100/100
+→ Total potential: 35 + 17 + 28 + 10 = 90/100 (+ regime max 10 = 100)
 → Interpretation: Institutions accumulating pullback in uptrend (HIGH EDGE)
 
 Scenario 2: Counter-Trend Accumulation
 HTF1: Strong downtrend
 Pattern: Accumulation detected
-Convergence: 40 pts
+Convergence: 35 pts
 → Trend Score: 0/10
-→ Total potential: 40 + 20 + 30 + 0 = 90/100
+→ Total potential: 35 + 17 + 28 + 0 = 80/100 (+ regime max 10 = 90)
 → Interpretation: Institutions trying to catch falling knife (LOWER EDGE)
 ```
 
 **Note:** This is a BONUS for trend alignment, not a penalty for counter-trend (unlike Algorithm 1's strict filtering). Algorithm 2 assumes institutional campaigns can reverse trends, so it allows counter-trend signals but rewards aligned ones.
+
+### Component 5: Regime Scoring (0-10 points)
+
+**Objective:** Award/penalize signals based on volatility regime to reduce false positives
+
+**Calculation:**
+
+```
+ATR-based volatility regime:
+  Current ATR = ATR(14)
+  Average ATR = SMA(ATR(14), 50)
+  ATR Ratio = Current ATR / Average ATR
+
+Regime Classification:
+  High Volatility: ATR Ratio > 1.3 (>30% above average)
+  Low Volatility: ATR Ratio < 0.7 (<30% below average)
+  Normal Volatility: 0.7 ≤ ATR Ratio ≤ 1.3
+
+Regime Transition Detection:
+  ATR Change = |ATR Ratio - ATR Ratio[5 bars ago]|
+  Transitioning: ATR Change > 0.2
+```
+
+**Scoring Logic:**
+
+```pinescript
+If Regime Filter Enabled:
+  If Transitioning:
+    Regime Score = 5 points (reduced confidence during regime shifts)
+
+  Else if Low Volatility:
+    Regime Score = 10 points (best regime - institutions stand out)
+
+  Else if Normal Volatility:
+    Regime Score = 7 points (neutral regime - moderate reliability)
+
+  Else if High Volatility:
+    Regime Score = 0 points (worst regime - noise creates false signals)
+
+Else:
+  Regime Score = 0 points (regime filter disabled)
+```
+
+**Why this matters:**
+
+Low volatility environments make institutional activity MORE visible:
+- Less retail noise
+- Institutional footprint clearer
+- Volume spikes more meaningful
+
+High volatility creates false positives:
+- Panic volume overwhelms institutional signals
+- All timeframes elevated due to chaos, not campaigns
+- Algorithm effectiveness reduced
+
+**Examples:**
+
+```
+Example 1: Low Volatility (Ideal)
+ATR Ratio: 0.65 (35% below average)
+Regime: Low Vol
+Convergence: 35 pts
+→ Regime Score: 10/10
+→ Total with regime: Up to 100/100
+→ Interpretation: Institutional activity highly visible
+
+Example 2: High Volatility (Poor)
+ATR Ratio: 1.45 (45% above average)
+Regime: High Vol
+Convergence: 35 pts
+→ Regime Score: 0/10
+→ Total with regime: Max 90/100
+→ Interpretation: Many false signals expected
+
+Example 3: Transitioning (Uncertain)
+ATR Ratio: 1.15 (was 0.90 five bars ago)
+ATR Change: 0.25 (> 0.2 threshold)
+Regime: Transitioning
+→ Regime Score: 5/10
+→ Interpretation: Market regime shifting, lower confidence
+```
+
+**Note:** This component was added to reduce false positives during volatile conditions. It's optional (can be disabled in settings) but recommended for improved accuracy.
 
 ### Total MTF Score Calculation
 
 **Final aggregation:**
 
 ```
-MTF Score = Convergence Score (0-40)
-          + Volume Pattern Score (0-20)
-          + Price Action Score (0-30)
+MTF Score = Convergence Score (0-35)
+          + Volume Pattern Score (0-17)
+          + Price Action Score (0-28)
           + Trend Score (0-10)
+          + Regime Score (0-10)
 
-MTF Score = min(100, total)  // Cap at 100
+Maximum: 100 points (no capping needed, components sum to exactly 100)
 
 Institutional Signal = MTF Score ≥ Threshold (default 70)
 ```
@@ -500,7 +581,7 @@ Institutional Signal = MTF Score ≥ Threshold (default 70)
 
 | Score Range | Classification | Signal Strength | Convergence Pattern |
 |-------------|---------------|-----------------|---------------------|
-| **85-100** | Extreme Signal | Very High | All 3 TF + Building + Accumulation + Trend |
+| **85-100** | Extreme Signal | Very High | All 3 TF + Building + Accumulation + Trend + Low Vol |
 | **70-85** | Strong Signal | High | All 3 TF or 2 TF + Confirmations |
 | **50-70** | Moderate Signal | Medium | 2 TF + Some confirmations |
 | **30-50** | Weak Signal | Low | 1 TF or weak convergence |
@@ -510,29 +591,32 @@ Institutional Signal = MTF Score ≥ Threshold (default 70)
 
 ```
 Example 1: Perfect Setup (Score 100)
-Convergence: 40 pts (all 3 TF)
-Pattern: 20 pts (building campaign)
-Price Action: 30 pts (accumulation)
+Convergence: 35 pts (all 3 TF)
+Pattern: 17 pts (building campaign)
+Price Action: 28 pts (accumulation)
 Trend: 10 pts (aligned)
+Regime: 10 pts (low volatility)
 → Total: 100/100
 → Rare occurrence: 1-2 per month on daily charts
 → Highest conviction signal
 
-Example 2: Strong Setup (Score 75)
-Convergence: 40 pts (all 3 TF)
+Example 2: Strong Setup (Score 73)
+Convergence: 35 pts (all 3 TF)
 Pattern: 0 pts (mature campaign)
-Price Action: 30 pts (accumulation)
+Price Action: 28 pts (accumulation)
 Trend: 0 pts (counter-trend)
-→ Total: 70/100
+Regime: 10 pts (low volatility)
+→ Total: 73/100
 → Common occurrence: 3-5 per month on daily charts
 → Tradeable signal
 
-Example 3: Weak Setup (Score 45)
-Convergence: 25 pts (2 TF only)
+Example 3: Weak Setup (Score 41)
+Convergence: 22 pts (2 TF only)
 Pattern: 0 pts (no cascade)
-Price Action: 20 pts (distribution/breakout)
+Price Action: 19 pts (distribution/breakout)
 Trend: 0 pts (counter-trend)
-→ Total: 45/100
+Regime: 0 pts (high volatility)
+→ Total: 41/100
 → Frequent occurrence: 10-15 per month on daily charts
 → Watch only, not tradeable
 ```
@@ -818,9 +902,10 @@ Subtle background color appears on indicator panel:
 │ HTF2 (D): ✓ 1.6x                   │ ← HTF2 convergence status
 ├─────────────────────────────────────┤
 │ Score Breakdown:                    │
-│ Convergence: 40                     │ ← 0-40 pts
-│ Pattern: 20                         │ ← 0-20 pts (building campaign)
-│ Price Action: 30                    │ ← 0-30 pts (accum/distr)
+│ Convergence: 35                     │ ← 0-35 pts
+│ Pattern: 17                         │ ← 0-17 pts (building campaign)
+│ Price Action: 28                    │ ← 0-28 pts (accum/distr)
+│ Regime: 10                          │ ← 0-10 pts (volatility)
 └─────────────────────────────────────┘
 ```
 
@@ -850,7 +935,7 @@ Subtle background color appears on indicator panel:
 1. MTF Score ≥ 75 (high conviction)
 2. Pattern = "Accumulation"
 3. Price at identified support level (S/R MANDATORY)
-4. Convergence = All 3 TF (40 pts) OR 2 TF with building pattern (25 + 20 = 45+ pts)
+4. Convergence = All 3 TF (35 pts) OR 2 TF with building pattern (22 + 17 = 39+ pts)
 5. Higher timeframe in uptrend or ranging
 ```
 
@@ -944,8 +1029,8 @@ Bar 1: Campaign Starting
   4H: 1.4x volume ✗ (not yet)
   1H: 1.2x volume ✗ (not yet)
 
-  Convergence: 10 pts (only 1 TF)
-  MTF Score: 10 + 0 + 0 + 0 = 10
+  Convergence: 9 pts (only 1 TF)
+  MTF Score: 9 + 0 + 0 + 0 + 0 = 9
   → No signal yet (below threshold)
 
 Bar 5: Campaign Building
@@ -953,17 +1038,17 @@ Bar 5: Campaign Building
   4H: 1.6x volume ✓ (now elevated)
   1H: 1.5x volume ✓ (now elevated)
 
-  Convergence: 40 pts (all 3 TF)
+  Convergence: 35 pts (all 3 TF)
   Building Pattern: YES (1.9 > 1.6 > 1.5 cascade)
   Pattern: Accumulation (compressed range)
 
-  MTF Score: 40 + 20 + 30 + 10 = 100
+  MTF Score: 35 + 17 + 28 + 10 + 10 = 100
   → EARLY CAMPAIGN DETECTED
 
 Traditional Signal: Would trigger at Bar 5
 This Algorithm: Triggers at Bar 5 with BUILDING PATTERN bonus
 
-Key Difference: Building Pattern Score (+20) differentiates early vs late
+Key Difference: Building Pattern Score (+17) differentiates early vs late
 ```
 
 **Entry Logic:**
@@ -974,7 +1059,7 @@ When Building Pattern = YES:
   → Wider stops (campaign may develop over days)
   → Larger targets (full campaign move expected)
 
-When Building Pattern = NO but Convergence = 40:
+When Building Pattern = NO but Convergence = 35:
   → Campaign already mature
   → Tighter stops (late entry)
   → Smaller targets (less runway remaining)
@@ -1553,9 +1638,9 @@ When enabled, additional debug table appears (bottom-right corner):
 ```
 
 **Convergence text values:**
-- "All 3 TF" = 40 points (all timeframes elevated)
-- "2 TF" = 25 points (two timeframes elevated)
-- "1 TF" = 10 points (one timeframe elevated)
+- "All 3 TF" = 35 points (all timeframes elevated)
+- "2 TF" = 22 points (two timeframes elevated)
+- "1 TF" = 9 points (one timeframe elevated)
 - "None" = 0 points (no convergence)
 
 ### Debugging Common Issues
@@ -1586,7 +1671,7 @@ Debug checks:
 
 2. Check "Range Ratio"
    → If 0.65: Very compressed range = Accumulation pattern
-   → Price Action Score contributing 30 pts
+   → Price Action Score contributing 28 pts
 ```
 
 **Issue 3: "Timeframes seem wrong"**
@@ -1629,10 +1714,11 @@ When signal appears, record:
   Date/Time: 2024-11-15 14:00
   MTF Score: 78
   Pattern: Accumulation
-  Convergence: All 3 TF (40 pts)
+  Convergence: All 3 TF (35 pts)
   Building: No (0 pts)
-  Price Action: Accumulation (30 pts)
+  Price Action: Accumulation (28 pts)
   Trend: Bullish (10 pts)
+  Regime: Transitioning (5 pts)
 
   Debug Data:
     Current Vol: 145,230 (2.1x)
@@ -1712,9 +1798,9 @@ FOMC announcement:
   4H: 3.5x volume (captures the spike)
   Daily: 2.0x volume (captures the spike)
 
-Convergence Score: 40 pts (all 3 TF elevated)
+Convergence Score: 35 pts (all 3 TF elevated)
 Pattern: Distribution/Breakout (expanded range)
-MTF Score: 40 + 0 + 20 + 0 = 60
+MTF Score: 35 + 0 + 19 + 0 + 0 = 54
 
 But this is NEWS REACTION, not institutional campaign!
 
@@ -1919,17 +2005,17 @@ Note: Higher frequency but lower edge on 1H
 
 ### Convergence Pattern Performance
 
-**All 3 Timeframes Converged (40 pts):**
+**All 3 Timeframes Converged (35 pts):**
 - Win Rate: 68-78% (HIGHEST)
 - Frequency: 40% of signals
 - Recommendation: PRIORITIZE these signals
 
-**2 Timeframes Converged (25 pts):**
+**2 Timeframes Converged (22 pts):**
 - Win Rate: 58-68%
 - Frequency: 35% of signals
 - Recommendation: Trade with additional confirmation
 
-**1 Timeframe Only (10 pts):**
+**1 Timeframe Only (9 pts):**
 - Win Rate: 48-58% (marginal/no edge)
 - Frequency: 25% of signals
 - Recommendation: SKIP - likely noise
@@ -2088,12 +2174,13 @@ Timeframe: 4H chart
 Price: 4,250 (identified support from previous low + Volume Profile VAL)
 
 Algorithm 2 Status:
-  MTF Score: 85
+  MTF Score: 100
   Pattern: Accumulation
-  Convergence: All 3 TF (40 pts)
-  Building Pattern: YES (20 pts)
-  Price Action: Accumulation (30 pts)
+  Convergence: All 3 TF (35 pts)
+  Building Pattern: YES (17 pts)
+  Price Action: Accumulation (28 pts)
   Trend: Bullish (10 pts)
+  Regime: Low Vol (10 pts)
 
   Current (4H): 2.0x volume
   HTF1 (Daily): 1.8x volume
