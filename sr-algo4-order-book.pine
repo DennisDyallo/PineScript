@@ -99,6 +99,10 @@ type RejectionData
 
 var array<RejectionData> rejectionLevels = array.new<RejectionData>()
 
+// Pre-calculate series to avoid warnings (called outside loop for consistency)
+volumeSMA20 = ta.sma(volume, 20)
+atrSeries = ta.atr(atrLength)
+
 // Analyze historical bars for rejection patterns
 if barstate.islast
     array.clear(rejectionLevels)
@@ -112,14 +116,14 @@ if barstate.islast
         candle_volume = volume[i]
 
         // AUDIT FIX: Edge case - skip zero/low volume bars
-        avgVolAtBar = ta.sma(volume, 20)[i]
+        avgVolAtBar = volumeSMA20[i]  // Use pre-calculated series
         if candle_volume < avgVolAtBar * 0.1  // Skip if volume <10% average
             continue
 
         // AUDIT FIX: Edge case - detect and skip gap bars
         prevClose = i < bar_index ? close[i + 1] : close
         gapSize = math.abs(candle_open - prevClose)
-        atrAtBar = ta.atr(atrLength)[i]
+        atrAtBar = atrSeries[i]  // Use pre-calculated series
         isGapBar = atrAtBar > 0 and gapSize > atrAtBar * 0.5  // Gap >50% ATR
         if isGapBar
             continue
@@ -321,27 +325,28 @@ if barstate.islast and array.size(rejectionLevels) > 0
             // Penalize inconsistent wicks (noise vs true rejection)
             wickScore = rejection.avgWickStrength * 20.0  // Base score
 
-            // Calculate wick consistency (1.0 = all wicks same size, 0 = random)
+            // AUDIT v2.1: Calculate wick consistency (penalize both low mean AND high variance)
             wickConsistency = 1.0
+            meanWickStrength = rejection.avgWickStrength
+
             if array.size(rejection.wickStrengths) > 1
-                // Calculate standard deviation
-                mean = rejection.avgWickStrength
+                // Calculate coefficient of variation (CV = stdev / mean)
                 variance = 0.0
                 for j = 0 to array.size(rejection.wickStrengths) - 1
                     wickStr = array.get(rejection.wickStrengths, j)
-                    variance += math.pow(wickStr - mean, 2)
+                    variance += math.pow(wickStr - meanWickStrength, 2)
                 variance /= array.size(rejection.wickStrengths)
-                stdev = math.sqrt(variance)
-                wickConsistency := mean > 0 ? 1.0 - (stdev / mean) : 1.0
+                stdDevWick = math.sqrt(variance)
+
+                // CV clamped to [0, 1]
+                cvClamped = meanWickStrength > 0.01 ? math.min(1.0, stdDevWick / meanWickStrength) : 1.0
+
+                // Improved consistency: high mean + low CV = high consistency
+                // Low mean OR high CV = low consistency
+                wickConsistency := meanWickStrength * (1.0 - cvClamped)
                 wickConsistency := math.max(0, math.min(1, wickConsistency))
 
-            // AUDIT v2.1: Improved consistency metric (penalize both low mean AND high variance)
-            meanNormalized = rejection.avgWickStrength / 1.0  // Normalize to [0,1]
-            cvClamped = wickConsistency > 0 ? math.min(1.0, stdev / math.max(mean, 0.01)) : 0.0
-            improvedConsistency = meanNormalized * (1.0 - cvClamped)
-            // High mean + low CV = high consistency, Low mean OR high CV = low consistency
-
-            wickScore *= (0.3 + 0.7 * improvedConsistency)  // 30-100% scaling (was 50-100%)
+            wickScore *= (0.3 + 0.7 * wickConsistency)  // 30-100% scaling
 
             // Base strength (0-95 before adjustments)
             baseStrength = volumeScore + rejectionScore + wickScore
@@ -350,8 +355,8 @@ if barstate.islast and array.size(rejectionLevels) > 0
             distance = close > 0 ? math.abs(close - rejection.price) / close : 0.0
 
             // ATR-adaptive distance scale (low vol: tight scale, high vol: wide scale)
-            atrPercent = close > 0 and not na(currentATR) ? currentATR / close : 0.015
-            distanceScale = math.max(0.05, math.min(0.30, atrPercent * 3.0))
+            distanceATRPct = close > 0 and not na(currentATR) ? currentATR / close : 0.015
+            distanceScale = math.max(0.05, math.min(0.30, distanceATRPct * 3.0))
             // ATR=1%: scale=3%, ATR=5%: scale=15%, ATR=10%: scale=30%
 
             distanceMultiplier = math.exp(-math.pow(distance / distanceScale, 2))
