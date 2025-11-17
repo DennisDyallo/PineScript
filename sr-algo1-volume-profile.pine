@@ -64,10 +64,7 @@ regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85
 // Calculate base bin count
 baseBins = priceBins  // User's manual setting (40 default)
 
-// Calculate adaptive bin count
-atr14 = ta.atr(14)
-avgATR = ta.sma(atr14, 50)  // Smoothed ATR over 50 bars
-
+// Calculate adaptive bin count (reuses avgATR from regime detection)
 // Optimal bin size = 2× ATR (statistically meaningful price level)
 // Number of bins = price range / (2 × ATR)
 adaptiveBinCount = baseBins
