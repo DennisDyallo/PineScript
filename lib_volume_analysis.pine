@@ -17,8 +17,8 @@ _safeDivide(float numerator, float denominator, float defaultValue = 1.0) =>
          defaultValue
 
 // Safe range calculation
-_safeRange(float priceRange, float close, float minPercent = 0.001) =>
-    minAllowed = close * minPercent
+_safeRange(float priceRange, float closeVal, float minPercent = 0.001) =>
+    minAllowed = closeVal * minPercent
     math.max(priceRange, minAllowed)
 
 // ============================================================================
@@ -131,8 +131,7 @@ export detectVolumeDivergence(float priceChange, VolumeMetrics metrics, float th
     volumeDelta = metrics.relativeVolume - 1.0
 
     // Divergence if price and volume move in opposite directions
-    (priceChange > threshold and volumeDelta < -threshold) or
-    (priceChange < -threshold and volumeDelta > threshold)
+    (priceChange > threshold and volumeDelta < -threshold) or (priceChange < -threshold and volumeDelta > threshold)
 
 // ============================================================================
 // VOLUME REGIME CLASSIFICATION
@@ -142,14 +141,10 @@ export detectVolumeDivergence(float priceChange, VolumeMetrics metrics, float th
 // @param metrics VolumeMetrics object
 // @returns String: "High Vol", "Normal Vol", "Low Vol"
 export classifyVolumeRegime(VolumeMetrics metrics) =>
-    metrics.relativeVolume > 1.5 ? "High Vol" :
-    metrics.relativeVolume < 0.7 ? "Low Vol" :
-    "Normal Vol"
+    metrics.relativeVolume > 1.5 ? "High Vol" : metrics.relativeVolume < 0.7 ? "Low Vol" : "Normal Vol"
 
 // @function Gets volume regime color for visualization
 // @param metrics VolumeMetrics object
 // @returns Color: green for high, gray for normal, red for low
 export getVolumeColor(VolumeMetrics metrics) =>
-    metrics.relativeVolume > 1.5 ? color.new(color.green, 70) :
-    metrics.relativeVolume < 0.7 ? color.new(color.red, 70) :
-    color.new(color.gray, 70)
+    metrics.relativeVolume > 1.5 ? color.new(color.green, 70) : metrics.relativeVolume < 0.7 ? color.new(color.red, 70) : color.new(color.gray, 70)
