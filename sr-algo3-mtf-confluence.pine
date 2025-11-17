@@ -49,14 +49,11 @@ atrLength = input.int(14, "ATR Length", minval=7, maxval=50, group="Regime Detec
 atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Regime Detection")
 
 // AUDIT FOLLOWUP: Volume Profile Integration (input.source() - NOT duplication!)
-useVolumeConfluence = input.bool(false, "Enable Volume Profile Confluence", group="Volume Integration",
-    tooltip="Requires S/R Algo 1 (Volume Profile) indicator to be added to chart")
-pocSource = input.source(close, "POC (Point of Control)", group="Volume Integration",
-    tooltip="Add Volume Profile indicator, then select its POC plot here")
+useVolumeConfluence = input.bool(false, "Enable Volume Profile Confluence", group="Volume Integration", tooltip="Requires S/R Algo 1 (Volume Profile) indicator to be added to chart")
+pocSource = input.source(close, "POC (Point of Control)", group="Volume Integration", tooltip="Add Volume Profile indicator, then select its POC plot here")
 vahSource = input.source(close, "VAH (Value Area High)", group="Volume Integration")
 valSource = input.source(close, "VAL (Value Area Low)", group="Volume Integration")
-volumeConfluenceTolerance = input.float(0.01, "Volume Level Confluence Tolerance %", minval=0.005, maxval=0.03, step=0.005, group="Volume Integration",
-    tooltip="Distance to consider S/R level aligned with volume level")
+volumeConfluenceTolerance = input.float(0.01, "Volume Level Confluence Tolerance %", minval=0.005, maxval=0.03, step=0.005, group="Volume Integration", tooltip="Distance to consider S/R level aligned with volume level")
 
 // ============================= TIMEFRAME AUTO-DETECTION =====================
 // Duplicated from TECH-DEBT.md - Section 6: Multi-Timeframe Helper Functions
@@ -406,8 +403,9 @@ if array.size(mtfLevels) > 0
         distanceToLevel = math.abs(close - level.price) / level.price
 
         // AUDIT FOLLOWUP FIX: Prevent double-counting same bar
-        lastRecordedTouch = array.size(level.touchBarIndices) > 0 ?
-            array.get(level.touchBarIndices, array.size(level.touchBarIndices) - 1) : -1
+        lastRecordedTouch = array.size(level.touchBarIndices) > 0 
+          ? array.get(level.touchBarIndices, array.size(level.touchBarIndices) - 1) 
+          : -1
 
         if distanceToLevel < touchTolerance and bar_index != lastRecordedTouch
             level.touchCount += 1
