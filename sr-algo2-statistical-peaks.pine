@@ -341,7 +341,7 @@ calculateStrength(price, touchCount, mostRecentBar, levelType) =>
 type LevelData
     float price
     float strength
-    int touchCount
+    float touchCount  // Changed to float for volume-weighted touch counts (v1.1)
     int confluenceCount
     string levelType
     color levelColor
