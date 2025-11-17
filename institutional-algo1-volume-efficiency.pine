@@ -2,6 +2,13 @@
 indicator('Institutional Volume Efficiency Detector [Trend Filtered]', shorttitle = 'IVED-TF', overlay = false, format = format.price, precision = 0, max_labels_count = 500)
 
 // ============================================================================
+// LIBRARY IMPORTS
+// ============================================================================
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/VolumeAnalysis/1 as vol_lib
+import redshad0ww/TrendDetection/1 as trend_lib
+
+// ============================================================================
 // INPUTS
 // ============================================================================
 i_volumeLookback = input.int(20, 'Volume Lookback Period', minval = 10, maxval = 100, group = 'Core Settings', tooltip = 'Period for calculating average volume and efficiency metrics')
@@ -26,51 +33,37 @@ i_showBackground = input.bool(true, 'Highlight High Scores', group = 'Display')
 i_debugMode = input.bool(false, 'Debug Mode', group = 'Advanced', tooltip = 'Show all intermediate calculations')
 
 // ============================================================================
-// VOLUME METRICS
+// VOLUME METRICS (using VolumeAnalysis library)
 // ============================================================================
+volMetrics = vol_lib.calculateVolumeMetrics(i_volumeLookback)
+relativeVolume = volMetrics.relativeVolume
+volumeEfficiency = volMetrics.volumeEfficiency
+efficiencyRatio = volMetrics.efficiencyRatio
+volumeScore = volMetrics.volumeScore
 
-avgVolume = ta.sma(volume, i_volumeLookback)
-// FIXED: Added NA protection to prevent early-bar errors
-relativeVolume = avgVolume > 0 and not na(avgVolume) ? volume / avgVolume : 1.0
-volumeScore = math.max(0, math.min(50, (relativeVolume - 1.0) * 25.0))
-
-// ============================================================================
-// PRICE EFFICIENCY METRICS
-// ============================================================================
-
-priceRange = high - low
-avgPriceRange = ta.sma(priceRange, i_volumeLookback)
-// FIXED: Added NA protection
-relativeRange = avgPriceRange > 0 and not na(avgPriceRange) ? priceRange / avgPriceRange : 1.0
-
-// Improved efficiency calculation with bounds
-safeRange = math.max(priceRange, close * 0.001)
-volumeEfficiency = volume / safeRange
-avgVolumeEfficiency = ta.sma(volumeEfficiency, i_volumeLookback)
-
-// FIXED: Added comprehensive NA protection and improved bounds checking
-efficiencyRatio = avgVolumeEfficiency > 0 and not na(avgVolumeEfficiency) ? math.min(5.0, volumeEfficiency / avgVolumeEfficiency) : 1.0
-
-// Only score if ratio is reasonable (1.3-4.0x range)
+// Calculate efficiency score based on threshold
 efficiencyScore = efficiencyRatio >= i_efficiencyThreshold and efficiencyRatio <= 4.0 ? math.min(30, (efficiencyRatio - 1.0) * 15.0) : 0.0
+
+// ============================================================================
+// PRICE METRICS (for wick analysis and close position)
+// ============================================================================
+priceRange = high - low
 
 // ============================================================================
 // WICK ANALYSIS
 // ============================================================================
-
 bodySize = math.abs(close - open)
 upperWick = high - math.max(open, close)
 lowerWick = math.min(open, close) - low
 totalWickSize = upperWick + lowerWick
-wickRatio = totalWickSize / math.max(priceRange, close * 0.0001)
+wickRatio = math_lib.safeDivide(totalWickSize, priceRange, 0.0)
 
 wickScore = wickRatio > 0.3 ? math.min(20, wickRatio * 40.0) : 0.0
 
 // ============================================================================
 // CLOSE POSITION ANALYSIS WITH PRICE CONTEXT
 // ============================================================================
-
-closePosition = (close - low) / math.max(priceRange, close * 0.0001)
+closePosition = math_lib.safeDivide(close - low, priceRange, 0.5)
 
 // Determine if at local high/low (last 10 bars)
 highest10 = ta.highest(high, 10)
@@ -120,23 +113,19 @@ else if closePosition < 0.30 and relativeVolume > 2.0 and isFalling
     distributionPattern
 
 // ============================================================================
-// TREND CONTEXT FILTER
+// TREND CONTEXT FILTER (using TrendDetection library)
 // ============================================================================
+// Get EMA-based trend direction
+[isUptrend, isDowntrend, isRanging] = trend_lib.detectEMATrend(20, 50, 200)
 
-// Trend detection using multiple EMAs
-ema20 = ta.ema(close, 20)
+// Get ADX-based trend strength
+trendData = trend_lib.detectADXTrend(14, i_minADX, 35.0)
+adx = trendData.adxValue
+isTrending = trendData.isTrending
+isStrongTrend = trendData.isStrongTrend
+
+// Preserve ema50 for later use in trend logic
 ema50 = ta.ema(close, 50)
-ema200 = ta.ema(close, 200)
-
-// Classify trend state
-isUptrend = close > ema50 and ema20 > ema50 and ema50 > ema200
-isDowntrend = close < ema50 and ema20 < ema50 and ema50 < ema200
-isRanging = not isUptrend and not isDowntrend
-
-// Trend strength via ADX
-[diPlus, diMinus, adx] = ta.dmi(14, 14)
-isTrending = adx > i_minADX
-isStrongTrend = adx > 35
 
 // ============================================================================
 // FINAL SCORE WITH TREND FILTERING
