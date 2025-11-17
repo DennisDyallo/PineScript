@@ -122,34 +122,34 @@ if useAdaptiveThreshold
 
 // ============================= SCORING ======================================
 
-// 1. VOLUME CONVERGENCE SCORE (0-40 points)
+// 1. VOLUME CONVERGENCE SCORE (0-35 points)
 convergenceScore = 0.0
 if currentRelVol > volumeThreshold1 and htf1RelVol > volumeThreshold2 and htf2RelVol > volumeThreshold3
-    convergenceScore := 40.0
+    convergenceScore := 35.0
 else if (currentRelVol > volumeThreshold1 and htf1RelVol > volumeThreshold2) or (htf1RelVol > volumeThreshold2 and htf2RelVol > volumeThreshold3) or (currentRelVol > volumeThreshold1 and htf2RelVol > volumeThreshold3)
-    convergenceScore := 25.0
+    convergenceScore := 22.0
 else if currentRelVol > volumeThreshold1 or htf1RelVol > volumeThreshold2 or htf2RelVol > volumeThreshold3
-    convergenceScore := 10.0
+    convergenceScore := 9.0
 
-// 2. VOLUME PATTERN SCORE - Building Campaign (0-20 points)
+// 2. VOLUME PATTERN SCORE - Building Campaign (0-17 points)
 volumePatternScore = 0.0
-if htf2RelVol > htf1RelVol and htf1RelVol > currentRelVol and convergenceScore > 20
-    volumePatternScore := 20.0
+if htf2RelVol > htf1RelVol and htf1RelVol > currentRelVol and convergenceScore > 18
+    volumePatternScore := 17.0
 else if htf2RelVol > htf1RelVol or htf1RelVol > currentRelVol
-    volumePatternScore := 10.0
+    volumePatternScore := 9.0
 
-// 3. PRICE ACTION CONFIRMATION (0-30 points)
+// 3. PRICE ACTION CONFIRMATION (0-28 points)
 currentRange = (high - low) / close
 avgRange = ta.sma(currentRange, volumeLookback)
 rangeRatio = avgRange > 0 and not na(avgRange) ? currentRange / avgRange : 1.0
 
 priceScore = 0.0
 patternLabel = ""
-if rangeRatio < (1.0 + adaptiveDivergence) and convergenceScore > 20
-    priceScore := 30.0
+if rangeRatio < (1.0 + adaptiveDivergence) and convergenceScore > 18
+    priceScore := 28.0
     patternLabel := "Accumulation"
-else if rangeRatio > (1.0 + adaptiveDivergence) and convergenceScore > 20
-    priceScore := 20.0
+else if rangeRatio > (1.0 + adaptiveDivergence) and convergenceScore > 18
+    priceScore := 19.0
     patternLabel := "Distribution/Breakout"
 else
     patternLabel := "Neutral"
@@ -159,22 +159,36 @@ htf1Close = request.security(syminfo.tickerid, higherTF1, close, lookahead=barme
 htf1SMA = request.security(syminfo.tickerid, higherTF1, ta.sma(close, trendLength), lookahead=barmerge.lookahead_off)
 htf1Trend = not na(htf1Close) and not na(htf1SMA) and htf1Close > htf1SMA
 
-trendScore = htf1Trend and convergenceScore > 20 ? 10.0 : 0.0
+trendScore = htf1Trend and convergenceScore > 18 ? 10.0 : 0.0
 
-// 5. REGIME SCORING (0-15 points)
+// 5. REGIME SCORING (0-10 points with transition detection)
 // Low volatility = best for detecting institutional activity (less noise)
 // High volatility = worst (more false positives, retail noise)
+
+// Detect regime transitions (reduce confidence when regime is unstable)
+atrChange = math.abs(atrRatio - atrRatio[5])
+isTransitioning = atrChange > 0.2
+
 regimeScore = 0.0
+regimeLabel = ""
 if useRegimeFilter
-    if isLowVol
-        regimeScore := 15.0  // Best regime: Low vol, institutions stand out
+    if isTransitioning
+        regimeScore := 5.0   // Reduced confidence during transitions
+        regimeLabel := regimeName + " (Transitioning)"
+    else if isLowVol
+        regimeScore := 10.0  // Best regime: Low vol, institutions stand out
+        regimeLabel := regimeName
     else if isNormalVol
-        regimeScore := 10.0  // Neutral regime: moderate reliability
+        regimeScore := 7.0   // Neutral regime: moderate reliability
+        regimeLabel := regimeName
     else if isHighVol
         regimeScore := 0.0   // Worst regime: High vol creates false signals
+        regimeLabel := regimeName
+else
+    regimeLabel := regimeName
 
-// 6. FINAL MTF SCORE (0-100)
-mtfScore = math.min(100, convergenceScore + volumePatternScore + priceScore + trendScore + regimeScore)
+// 6. FINAL MTF SCORE (0-100, no capping needed)
+mtfScore = convergenceScore + volumePatternScore + priceScore + trendScore + regimeScore
 isInstitutional = mtfScore >= scoreThreshold
 
 // ============================= VISUALIZATION ================================
@@ -228,10 +242,10 @@ if showTable
         table.cell(infoTable, 0, 4, "Trend:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
         table.cell(infoTable, 1, 4, htf1Trend ? "Bullish" : "Bearish", text_color=htf1Trend ? #00ff00 : #ff5252, bgcolor=color.new(#424242, 0), text_size=size.small)
 
-        // Regime indicator
-        regimeColor = isLowVol ? #00ff00 : isHighVol ? #ff5252 : #ffeb3b
+        // Regime indicator with transition warning
+        regimeColor = isTransitioning ? #ff9800 : isLowVol ? #00ff00 : isHighVol ? #ff5252 : #ffeb3b
         table.cell(infoTable, 0, 5, "Regime:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
-        table.cell(infoTable, 1, 5, regimeName + " (" + str.tostring(atrRatio, "#.##") + "x)", text_color=regimeColor, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 5, regimeLabel + " (" + str.tostring(atrRatio, "#.##") + "x)", text_color=regimeColor, bgcolor=color.new(#424242, 0), text_size=size.small)
 
         // Timeframes Section
         table.cell(infoTable, 0, 6, "Timeframes:", text_color=#ffeb3b, bgcolor=color.new(#424242, 0), text_size=size.small)

@@ -213,14 +213,14 @@ if useAdaptiveThreshold2
         adaptiveDivergence2 := math.max(0.1, divergenceThreshold2 * 0.8)
     adaptiveDivergence2
 
-// Scoring
+// Scoring (rescaled to avoid score compression)
 convergenceScore2 = 0.0
 if currentRelVol2 > mtfVolumeThreshold and htf1RelVol > mtfVolumeThreshold and htf2RelVol > mtfVolumeThreshold
-    convergenceScore2 := 40.0
+    convergenceScore2 := 35.0
 else if (currentRelVol2 > mtfVolumeThreshold and htf1RelVol > mtfVolumeThreshold) or (htf1RelVol > mtfVolumeThreshold and htf2RelVol > mtfVolumeThreshold)
-    convergenceScore2 := 25.0
+    convergenceScore2 := 22.0
 
-volumePatternScore2 = htf2RelVol > htf1RelVol and htf1RelVol > currentRelVol2 and convergenceScore2 > 20 ? 20.0 : 0.0
+volumePatternScore2 = htf2RelVol > htf1RelVol and htf1RelVol > currentRelVol2 and convergenceScore2 > 18 ? 17.0 : 0.0
 
 currentRange2 = (high - low) / close
 avgRange2 = ta.sma(currentRange2, volumeLookback2)
@@ -228,29 +228,34 @@ rangeRatio2 = avgRange2 > 0 and not na(avgRange2) ? currentRange2 / avgRange2 : 
 
 priceScore2 = 0.0
 algo2_pattern = ""
-if rangeRatio2 < (1.0 + adaptiveDivergence2) and convergenceScore2 > 20
-    priceScore2 := 30.0
+if rangeRatio2 < (1.0 + adaptiveDivergence2) and convergenceScore2 > 18
+    priceScore2 := 28.0
     algo2_pattern := "Accumulation"
-else if rangeRatio2 > (1.0 + adaptiveDivergence2) and convergenceScore2 > 20
-    priceScore2 := 20.0
+else if rangeRatio2 > (1.0 + adaptiveDivergence2) and convergenceScore2 > 18
+    priceScore2 := 19.0
     algo2_pattern := "Distribution"
 
 htf1Close = request.security(syminfo.tickerid, higherTF1, close, lookahead=barmerge.lookahead_off)
 htf1SMA = request.security(syminfo.tickerid, higherTF1, ta.sma(close, 50), lookahead=barmerge.lookahead_off)
 htf1Trend = not na(htf1Close) and not na(htf1SMA) and htf1Close > htf1SMA
-trendScore2 = htf1Trend and convergenceScore2 > 20 ? 10.0 : 0.0
+trendScore2 = htf1Trend and convergenceScore2 > 18 ? 10.0 : 0.0
 
-// Regime scoring (Component 5)
+// Regime scoring (Component 5) with transition detection
+atrChange2 = math.abs(atrRatio2 - atrRatio2[5])
+isTransitioning2 = atrChange2 > 0.2
+
 regimeScore2 = 0.0
 if useRegimeFilter2
-    if isLowVol2
-        regimeScore2 := 15.0
-    else if isNormalVol2
+    if isTransitioning2
+        regimeScore2 := 5.0   // Reduced confidence during transitions
+    else if isLowVol2
         regimeScore2 := 10.0
+    else if isNormalVol2
+        regimeScore2 := 7.0
     else if isHighVol2
         regimeScore2 := 0.0
 
-algo2_score = enableAlgo2 ? math.min(100, convergenceScore2 + volumePatternScore2 + priceScore2 + trendScore2 + regimeScore2) : 0.0
+algo2_score = enableAlgo2 ? convergenceScore2 + volumePatternScore2 + priceScore2 + trendScore2 + regimeScore2 : 0.0
 
 // ============================================================================
 // ALGORITHM 3: BAYESIAN REGIME CLASSIFIER
