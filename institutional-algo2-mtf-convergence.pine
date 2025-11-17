@@ -137,25 +137,25 @@ isInstitutional = mtfScore >= scoreThreshold
 
 // ============================= VISUALIZATION ================================
 
-// Color gradient
-scoreColor = mtfScore >= 70 ? color.new(color.green, 0) : mtfScore >= 50 ? color.new(color.yellow, 0) : mtfScore >= 30 ? color.new(color.orange, 0) : color.new(color.red, 0)
+// Color gradient (optimized for dark mode)
+scoreColor = mtfScore >= 70 ? color.new(#00ff00, 0) : mtfScore >= 50 ? color.new(#ffeb3b, 0) : mtfScore >= 30 ? color.new(#ff9800, 0) : color.new(#f44336, 0)
 
 // Main MTF score histogram
 plot(mtfScore, "MTF Score", color=scoreColor, style=plot.style_histogram, linewidth=3)
 
-// Relative volume plots for each timeframe
-plot(showVolumePlots ? currentRelVol * 20 : na, "Current TF Vol", color=color.new(color.blue, 30), linewidth=2)
-plot(showVolumePlots ? htf1RelVol * 20 : na, "HTF1 Vol", color=color.new(color.purple, 30), linewidth=2)
-plot(showVolumePlots ? htf2RelVol * 20 : na, "HTF2 Vol", color=color.new(color.fuchsia, 30), linewidth=2)
+// Relative volume plots for each timeframe (bright colors for dark mode)
+plot(showVolumePlots ? currentRelVol * 20 : na, "Current TF Vol", color=color.new(#2196f3, 20), linewidth=2)
+plot(showVolumePlots ? htf1RelVol * 20 : na, "HTF1 Vol", color=color.new(#9c27b0, 20), linewidth=2)
+plot(showVolumePlots ? htf2RelVol * 20 : na, "HTF2 Vol", color=color.new(#e91e63, 20), linewidth=2)
 
-// Reference lines
-hline(scoreThreshold, "Threshold", color=color.new(color.white, 50), linestyle=hline.style_dashed, linewidth=1)
-hline(50, "Midline", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
-hline(30, "Volume Ref (1.5x)", color=color.new(color.gray, 80), linestyle=hline.style_dotted)
+// Reference lines (visible on dark backgrounds)
+hline(scoreThreshold, "Threshold", color=color.new(#ffffff, 40), linestyle=hline.style_dashed, linewidth=1)
+hline(50, "Midline", color=color.new(#757575, 50), linestyle=hline.style_dotted)
+hline(30, "Volume Ref (1.5x)", color=color.new(#616161, 60), linestyle=hline.style_dotted)
 
-// Chart markers
-plotshape(showMarkers and isInstitutional and patternLabel == "Accumulation" ? mtfScore : na, "Accumulation", shape.circle, location.bottom, color.new(color.green, 0), size=size.small)
-plotshape(showMarkers and isInstitutional and patternLabel == "Distribution/Breakout" ? mtfScore : na, "Distribution", shape.circle, location.top, color.new(color.red, 0), size=size.small)
+// Chart markers (bright colors for dark mode)
+plotshape(showMarkers and isInstitutional and patternLabel == "Accumulation" ? mtfScore : na, "Accumulation", shape.circle, location.bottom, color.new(#00ff00, 0), size=size.small)
+plotshape(showMarkers and isInstitutional and patternLabel == "Distribution/Breakout" ? mtfScore : na, "Distribution", shape.circle, location.top, color.new(#ff5252, 0), size=size.small)
 
 // Background tint
 bgcolor(isInstitutional ? color.new(scoreColor, 90) : na)
@@ -166,52 +166,52 @@ if showTable
     var table infoTable = table.new(position.top_right, 2, 12, border_width=1)
 
     if barstate.islast
-        // Header
-        table.cell(infoTable, 0, 0, "MTF Convergence Analysis", text_color=color.white, bgcolor=color.new(color.blue, 30), text_size=size.normal)
+        // Header (dark mode optimized)
+        table.cell(infoTable, 0, 0, "MTF Convergence Analysis", text_color=color.white, bgcolor=color.new(#1976d2, 0), text_size=size.normal)
         table.merge_cells(infoTable, 0, 0, 1, 0)
 
-        // Current Status
-        table.cell(infoTable, 0, 1, "MTF Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(infoTable, 1, 1, str.tostring(math.round(mtfScore, 0)), text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
+        // Current Status (darker backgrounds for visibility on dark mode)
+        table.cell(infoTable, 0, 1, "MTF Score:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 1, str.tostring(math.round(mtfScore, 0)), text_color=color.white, bgcolor=color.new(scoreColor, 70), text_size=size.small)
 
-        table.cell(infoTable, 0, 2, "Pattern:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(infoTable, 1, 2, patternLabel, text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
+        table.cell(infoTable, 0, 2, "Pattern:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 2, patternLabel, text_color=color.white, bgcolor=color.new(scoreColor, 70), text_size=size.small)
 
-        table.cell(infoTable, 0, 3, "Trend:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(infoTable, 1, 3, htf1Trend ? "Bullish" : "Bearish", text_color=htf1Trend ? color.lime : color.red, bgcolor=color.new(color.gray, 70), text_size=size.small)
+        table.cell(infoTable, 0, 3, "Trend:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.small)
+        table.cell(infoTable, 1, 3, htf1Trend ? "Bullish" : "Bearish", text_color=htf1Trend ? #00ff00 : #ff5252, bgcolor=color.new(#424242, 0), text_size=size.small)
 
         // Timeframes Section
-        table.cell(infoTable, 0, 4, "Timeframes:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
+        table.cell(infoTable, 0, 4, "Timeframes:", text_color=#ffeb3b, bgcolor=color.new(#424242, 0), text_size=size.small)
         table.merge_cells(infoTable, 0, 4, 1, 4)
 
         // Current TF
         tfLabel = currentTF
         currentCheck = currentRelVol > volumeThreshold1 ? "✓" : "✗"
-        table.cell(infoTable, 0, 5, "Current (" + tfLabel + "):", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 5, currentCheck + " " + str.tostring(currentRelVol, "#.#") + "x", text_color=currentRelVol > volumeThreshold1 ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 0, 5, "Current (" + tfLabel + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 5, currentCheck + " " + str.tostring(currentRelVol, "#.#") + "x", text_color=currentRelVol > volumeThreshold1 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
 
         // HTF1
         htf1Check = htf1RelVol > volumeThreshold2 ? "✓" : "✗"
-        table.cell(infoTable, 0, 6, "HTF1 (" + higherTF1 + "):", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 6, htf1Check + " " + str.tostring(htf1RelVol, "#.#") + "x", text_color=htf1RelVol > volumeThreshold2 ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 0, 6, "HTF1 (" + higherTF1 + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 6, htf1Check + " " + str.tostring(htf1RelVol, "#.#") + "x", text_color=htf1RelVol > volumeThreshold2 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
 
         // HTF2
         htf2Check = htf2RelVol > volumeThreshold3 ? "✓" : "✗"
-        table.cell(infoTable, 0, 7, "HTF2 (" + higherTF2 + "):", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 7, htf2Check + " " + str.tostring(htf2RelVol, "#.#") + "x", text_color=htf2RelVol > volumeThreshold3 ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 0, 7, "HTF2 (" + higherTF2 + "):", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 7, htf2Check + " " + str.tostring(htf2RelVol, "#.#") + "x", text_color=htf2RelVol > volumeThreshold3 ? #00ff00 : #757575, bgcolor=color.new(#303030, 0), text_size=size.small)
 
         // Score Components
-        table.cell(infoTable, 0, 8, "Score Breakdown:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
+        table.cell(infoTable, 0, 8, "Score Breakdown:", text_color=#ffeb3b, bgcolor=color.new(#424242, 0), text_size=size.small)
         table.merge_cells(infoTable, 0, 8, 1, 8)
 
-        table.cell(infoTable, 0, 9, "Convergence:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 9, str.tostring(convergenceScore, "#"), text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 0, 9, "Convergence:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 9, str.tostring(convergenceScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
 
-        table.cell(infoTable, 0, 10, "Pattern:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 10, str.tostring(volumePatternScore, "#"), text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 0, 10, "Pattern:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 10, str.tostring(volumePatternScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
 
-        table.cell(infoTable, 0, 11, "Price Action:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 11, str.tostring(priceScore, "#"), text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+        table.cell(infoTable, 0, 11, "Price Action:", text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
+        table.cell(infoTable, 1, 11, str.tostring(priceScore, "#"), text_color=color.white, bgcolor=color.new(#303030, 0), text_size=size.small)
 
 // ============================= DEBUG TABLE ==================================
 
@@ -219,29 +219,35 @@ if debugMode
     var table debugTable = table.new(position.bottom_right, 2, 6, border_width=1)
 
     if barstate.islast
-        table.cell(debugTable, 0, 0, "DEBUG: MTF Data", text_color=color.black, bgcolor=color.yellow, text_size=size.small)
+        table.cell(debugTable, 0, 0, "DEBUG: MTF Data", text_color=color.black, bgcolor=#ffeb3b, text_size=size.small)
         table.merge_cells(debugTable, 0, 0, 1, 0)
 
-        table.cell(debugTable, 0, 1, "Current Vol:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 1, str.tostring(currentVolume, "#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+        table.cell(debugTable, 0, 1, "Current Vol:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
+        table.cell(debugTable, 1, 1, str.tostring(currentVolume, "#"), text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
 
-        table.cell(debugTable, 0, 2, "HTF1 Vol:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 2, str.tostring(htf1Volume, "#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+        table.cell(debugTable, 0, 2, "HTF1 Vol:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
+        table.cell(debugTable, 1, 2, str.tostring(htf1Volume, "#"), text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
 
-        table.cell(debugTable, 0, 3, "HTF2 Vol:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 3, str.tostring(htf2Volume, "#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+        table.cell(debugTable, 0, 3, "HTF2 Vol:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
+        table.cell(debugTable, 1, 3, str.tostring(htf2Volume, "#"), text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
 
-        table.cell(debugTable, 0, 4, "Range Ratio:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 4, str.tostring(rangeRatio, "#.##"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+        table.cell(debugTable, 0, 4, "Range Ratio:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
+        table.cell(debugTable, 1, 4, str.tostring(rangeRatio, "#.##"), text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
 
-        table.cell(debugTable, 0, 5, "Convergence:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+        table.cell(debugTable, 0, 5, "Convergence:", text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
         convergeText = convergenceScore == 40 ? "All 3 TF" : convergenceScore == 25 ? "2 TF" : convergenceScore == 10 ? "1 TF" : "None"
-        table.cell(debugTable, 1, 5, convergeText, text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+        table.cell(debugTable, 1, 5, convergeText, text_color=color.white, bgcolor=color.new(#424242, 0), text_size=size.tiny)
 
 // ============================= ALERTS =======================================
 
-alertcondition(ta.crossover(mtfScore, scoreThreshold), "MTF Convergence Detected", "MULTI-TIMEFRAME: Institutional " + patternLabel + " detected on {{ticker}} (Score: " + str.tostring(mtfScore, "#") + ")")
+// MTF Convergence Detected
+if ta.crossover(mtfScore, scoreThreshold)
+    alert("MULTI-TIMEFRAME: Institutional " + patternLabel + " detected on " + syminfo.ticker + " (Score: " + str.tostring(math.round(mtfScore, 0)) + ")", alert.freq_once_per_bar_close)
 
-alertcondition(ta.crossunder(mtfScore, scoreThreshold), "MTF Convergence Ended", "MTF institutional activity ended on {{ticker}}")
+// MTF Convergence Ended
+if ta.crossunder(mtfScore, scoreThreshold)
+    alert("MTF institutional activity ended on " + syminfo.ticker, alert.freq_once_per_bar_close)
 
-alertcondition(convergenceScore == 40 and mtfScore > scoreThreshold and not (mtfScore[1] > scoreThreshold), "All Timeframes Aligned", "VERY HIGH CONFIDENCE: All 3 timeframes show institutional activity on {{ticker}} (" + patternLabel + ")")
+// All Timeframes Aligned (highest confidence)
+if convergenceScore == 40 and mtfScore > scoreThreshold and not (mtfScore[1] > scoreThreshold)
+    alert("VERY HIGH CONFIDENCE: All 3 timeframes show institutional activity on " + syminfo.ticker + " (" + patternLabel + ")", alert.freq_once_per_bar_close)
