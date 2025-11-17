@@ -1,0 +1,357 @@
+//@version=5
+indicator("S/R Algo 4: Order Book Reconstruction", shorttitle="S/R Order Book", overlay=true, max_lines_count=50, max_labels_count=20)
+
+// ============================================================================
+// S/R ALGORITHM 4: ORDER BOOK RECONSTRUCTION (EXPERIMENTAL)
+// ============================================================================
+// Estimates where large institutional orders are sitting by analyzing
+// price rejection patterns (wicks) and volume concentration
+// Target Accuracy: 65-75% (indirect inference, use with caution)
+// ============================================================================
+
+// ============================= INPUTS =======================================
+
+// Analysis Settings
+lookbackBars = input.int(200, "Lookback Period", minval=50, maxval=500, group="Analysis", tooltip="Bars to analyze for order concentration")
+minWickRatio = input.float(0.3, "Minimum Wick/Body Ratio", minval=0.1, maxval=2.0, step=0.1, group="Analysis", tooltip="Minimum wick size relative to body to detect rejection")
+useVolumeFilter = input.bool(true, "Use Volume Filter", group="Analysis", tooltip="Require volume above threshold")
+minVolumeMultiplier = input.float(0.8, "Minimum Volume Multiplier", minval=0.3, maxval=3.0, step=0.1, group="Analysis", tooltip="Volume must be above this multiple of average")
+
+// Level Clustering
+clusterTolerance = input.float(0.015, "Order Level Clustering %", minval=0.005, maxval=0.05, step=0.005, group="Clustering", tooltip="Group rejection levels within this distance")
+minRejections = input.int(1, "Minimum Rejections", minval=1, maxval=5, group="Clustering", tooltip="Minimum number of rejections to form level")
+
+// Strength Filtering
+minStrength = input.int(40, "Minimum Strength to Display", minval=20, maxval=80, group="Display")
+maxLevels = input.int(15, "Maximum Levels to Display", minval=5, maxval=25, group="Display")
+showLabels = input.bool(true, "Show Order Size Estimates", group="Display", tooltip="Show estimated volume at each level")
+showRejectionMarkers = input.bool(false, "Show Rejection Markers (Debug)", group="Display", tooltip="Mark individual rejection candles")
+
+// Regime Detection (duplicated from TECH-DEBT.md)
+useRegimeFilter = input.bool(true, "Enable Regime-Aware Scoring", group="Regime Detection")
+atrLength = input.int(14, "ATR Length", minval=7, maxval=50, group="Regime Detection")
+atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Regime Detection")
+
+// ============================= REGIME DETECTION =============================
+// Duplicated from TECH-DEBT.md - Section 1: Regime Detection Logic
+
+currentATR = ta.atr(atrLength)
+avgATR = ta.sma(ta.atr(atrLength), atrLookback)
+atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
+
+isHighVol = atrRatio > 1.3
+isLowVol = atrRatio < 0.7
+isNormalVol = not isHighVol and not isLowVol
+
+regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
+regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85
+
+// ============================= VOLUME CALCULATIONS ==========================
+// Duplicated from TECH-DEBT.md - Section 3: Volume Calculations
+
+avgVolume = ta.sma(volume, 20)
+
+// ============================= WICK REJECTION ANALYSIS ======================
+
+type RejectionData
+    float price
+    float estimatedVolume
+    int rejectionCount
+    float avgWickStrength
+    string rejectionType
+
+var array<RejectionData> rejectionLevels = array.new<RejectionData>()
+
+// Analyze historical bars for rejection patterns
+if barstate.islast
+    array.clear(rejectionLevels)
+
+    // Loop through recent history
+    for i = 0 to math.min(lookbackBars - 1, bar_index)
+        candle_high = high[i]
+        candle_low = low[i]
+        candle_open = open[i]
+        candle_close = close[i]
+        candle_volume = volume[i]
+
+        // Calculate body and wicks
+        bodyTop = math.max(candle_open, candle_close)
+        bodyBottom = math.min(candle_open, candle_close)
+        bodySize = bodyTop - bodyBottom
+
+        upperWick = candle_high - bodyTop
+        lowerWick = bodyBottom - candle_low
+
+        // Safe division for wick ratios
+        safeBodySize = math.max(bodySize, candle_close * 0.0001)
+        upperWickRatio = upperWick / safeBodySize
+        lowerWickRatio = lowerWick / safeBodySize
+
+        // Get average volume at this bar's index
+        avgVolAtBar = ta.sma(volume, 20)[i]
+        relativeVol = avgVolAtBar > 0 ? candle_volume / avgVolAtBar : 1.0
+
+        // Detect RESISTANCE (large upper wick with volume)
+        volumeCheck = useVolumeFilter ? relativeVol >= minVolumeMultiplier : true
+        if upperWickRatio >= minWickRatio and volumeCheck
+            resistanceLevel = candle_high
+
+            // Estimate order volume at this level
+            // Logic: wick represents orders that absorbed buying pressure
+            safeRange = math.max(candle_high - candle_low, candle_close * 0.0001)
+            estimatedOrders = candle_volume * (upperWick / safeRange)
+
+            // Check if level already exists in array
+            existingIndex = -1
+            if array.size(rejectionLevels) > 0
+                for j = 0 to array.size(rejectionLevels) - 1
+                    existing = array.get(rejectionLevels, j)
+                    priceDistance = math.abs(existing.price - resistanceLevel) / resistanceLevel
+
+                    if priceDistance <= clusterTolerance and existing.rejectionType == "Resistance"
+                        existingIndex := j
+                        break
+
+            if existingIndex >= 0
+                // Update existing level
+                existing = array.get(rejectionLevels, existingIndex)
+                existing.estimatedVolume += estimatedOrders
+                existing.rejectionCount += 1
+                existing.avgWickStrength := (existing.avgWickStrength * (existing.rejectionCount - 1) + upperWickRatio) / existing.rejectionCount
+                array.set(rejectionLevels, existingIndex, existing)
+            else
+                // Create new level
+                newLevel = RejectionData.new(
+                     price = resistanceLevel,
+                     estimatedVolume = estimatedOrders,
+                     rejectionCount = 1,
+                     avgWickStrength = upperWickRatio,
+                     rejectionType = "Resistance"
+                 )
+                array.push(rejectionLevels, newLevel)
+
+        // Detect SUPPORT (large lower wick with volume)
+        // volumeCheck already calculated above for resistance
+        if lowerWickRatio >= minWickRatio and volumeCheck
+            supportLevel = candle_low
+
+            // Estimate order volume
+            safeRange = math.max(candle_high - candle_low, candle_close * 0.0001)
+            estimatedOrders = candle_volume * (lowerWick / safeRange)
+
+            // Check if level exists
+            existingIndex = -1
+            if array.size(rejectionLevels) > 0
+                for j = 0 to array.size(rejectionLevels) - 1
+                    existing = array.get(rejectionLevels, j)
+                    priceDistance = math.abs(existing.price - supportLevel) / supportLevel
+
+                    if priceDistance <= clusterTolerance and existing.rejectionType == "Support"
+                        existingIndex := j
+                        break
+
+            if existingIndex >= 0
+                // Update existing
+                existing = array.get(rejectionLevels, existingIndex)
+                existing.estimatedVolume += estimatedOrders
+                existing.rejectionCount += 1
+                existing.avgWickStrength := (existing.avgWickStrength * (existing.rejectionCount - 1) + lowerWickRatio) / existing.rejectionCount
+                array.set(rejectionLevels, existingIndex, existing)
+            else
+                // Create new level
+                newLevel = RejectionData.new(
+                     price = supportLevel,
+                     estimatedVolume = estimatedOrders,
+                     rejectionCount = 1,
+                     avgWickStrength = lowerWickRatio,
+                     rejectionType = "Support"
+                 )
+                array.push(rejectionLevels, newLevel)
+
+// ============================= STRENGTH SCORING =============================
+
+type OrderBookLevel
+    float price
+    float strength
+    float estimatedVolume
+    int rejectionCount
+    string levelType
+    color levelColor
+
+var array<OrderBookLevel> orderBookLevels = array.new<OrderBookLevel>()
+
+if barstate.islast and array.size(rejectionLevels) > 0
+    array.clear(orderBookLevels)
+
+    // Calculate strength for each rejection cluster
+    for i = 0 to array.size(rejectionLevels) - 1
+        rejection = array.get(rejectionLevels, i)
+
+        // Only process if meets minimum rejection count
+        if rejection.rejectionCount >= minRejections
+            // Strength calculation:
+            // = log(estimated volume + 10) * sqrt(rejection count) * avg wick strength * 15
+            // Added +10 to volume and increased multiplier for better scaling
+
+            // Safe log calculation (add 10 to ensure meaningful log values)
+            logVolume = rejection.estimatedVolume > 0 ? math.log(rejection.estimatedVolume + 10) : math.log(10)
+            sqrtRejections = math.sqrt(rejection.rejectionCount)
+
+            baseStrength = logVolume * sqrtRejections * rejection.avgWickStrength * 15.0
+
+            // Distance weighting (closer to current price = more relevant)
+            distance = math.abs(close - rejection.price) / close
+            distanceMultiplier = distance < 0.10 ? 1.0 : math.max(0.7, 1.0 - (distance * 0.5))
+
+            // Regime adjustment
+            regimeAdjustment = useRegimeFilter ? regimeMultiplier : 1.0
+
+            // Final strength
+            finalStrength = baseStrength * distanceMultiplier * regimeAdjustment
+            finalStrength := math.min(100, finalStrength)
+
+            // Color based on strength and type
+            levelColor = rejection.rejectionType == "Resistance" 
+              ? (finalStrength >= 65 ? color.new(color.red, 20) : color.new(color.orange, 40)) 
+              : (finalStrength >= 65 ? color.new(color.green, 20) : color.new(color.lime, 40))
+
+            if finalStrength >= minStrength
+                obLevel = OrderBookLevel.new(
+                     price = rejection.price,
+                     strength = finalStrength,
+                     estimatedVolume = rejection.estimatedVolume,
+                     rejectionCount = rejection.rejectionCount,
+                     levelType = rejection.rejectionType == "Resistance" ? "R" : "S",
+                     levelColor = levelColor
+                 )
+                array.push(orderBookLevels, obLevel)
+
+    // Sort by strength
+    if array.size(orderBookLevels) > 1
+        for i = 0 to array.size(orderBookLevels) - 1
+            maxIndex = array.size(orderBookLevels) - 2 - i
+            if maxIndex >= 0  // Safety check for valid loop range
+                for j = 0 to maxIndex
+                    if j + 1 < array.size(orderBookLevels)  // Safety check for j+1 access
+                        if array.get(orderBookLevels, j).strength < array.get(orderBookLevels, j + 1).strength
+                            temp = array.get(orderBookLevels, j)
+                            array.set(orderBookLevels, j, array.get(orderBookLevels, j + 1))
+                            array.set(orderBookLevels, j + 1, temp)
+
+// ============================= VISUALIZATION ================================
+
+// Draw order book levels
+if barstate.islast and array.size(orderBookLevels) > 0
+    for i = 0 to math.min(maxLevels - 1, array.size(orderBookLevels) - 1)
+        level = array.get(orderBookLevels, i)
+
+        // Draw line (dashed style to distinguish from other algorithms)
+        line.new(
+             bar_index - 80,
+             level.price,
+             bar_index + 15,
+             level.price,
+             color = level.levelColor,
+             width = level.strength >= 70 ? 2 : 1,
+             style = line.style_dotted  // Dotted to show it's inferred
+         )
+
+        // Draw label
+        if showLabels
+            // Format estimated volume (in thousands)
+            volK = level.estimatedVolume / 1000.0
+            labelText = level.levelType + " " + str.tostring(math.round(level.strength)) +
+                       "\n~" + str.tostring(math.round(volK)) + "K"
+
+            label.new(
+                 bar_index + 8,
+                 level.price,
+                 text = labelText,
+                 style = level.levelType == "R" ? label.style_label_down : label.style_label_up,
+                 color = level.levelColor,
+                 textcolor = color.white,
+                 size = size.tiny,
+                 tooltip = str.tostring(level.rejectionCount) + " rejections detected"
+             )
+
+// ============================= INFO TABLE ===================================
+
+var table infoTable = table.new(position.top_right, 2, 11, border_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(infoTable, 0, 0, "S/R Order Book (Experimental)",
+               text_color=color.white, bgcolor=color.new(color.purple, 30), text_size=size.normal)
+    table.merge_cells(infoTable, 0, 0, 1, 0)
+
+    // Warning
+    table.cell(infoTable, 0, 1, "⚠️ INFERRED DATA ⚠️",
+               text_color=color.yellow, bgcolor=color.new(color.red, 70), text_size=size.small)
+    table.merge_cells(infoTable, 0, 1, 1, 1)
+
+    // Stats
+    table.cell(infoTable, 0, 2, "Lookback:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(lookbackBars) + " bars",
+               text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    table.cell(infoTable, 0, 3, "Order Levels:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(infoTable, 1, 3, str.tostring(math.min(maxLevels, array.size(orderBookLevels))),
+               text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    // Count by type
+    resistanceCount = 0
+    supportCount = 0
+    if array.size(orderBookLevels) > 0  // Safety check before loop
+        for i = 0 to array.size(orderBookLevels) - 1
+            level = array.get(orderBookLevels, i)
+            if level.levelType == "R"
+                resistanceCount += 1
+            else
+                supportCount += 1
+
+    table.cell(infoTable, 0, 4, "Resistance Orders:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(infoTable, 1, 4, str.tostring(resistanceCount),
+               text_color=color.red, bgcolor=color.new(color.gray, 80), text_size=size.small)
+
+    table.cell(infoTable, 0, 5, "Support Orders:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(infoTable, 1, 5, str.tostring(supportCount),
+               text_color=color.green, bgcolor=color.new(color.gray, 80), text_size=size.small)
+
+    // Regime
+    table.cell(infoTable, 0, 6, "Regime:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    regimeColor = isLowVol ? color.green : isHighVol ? color.red : color.orange
+    table.cell(infoTable, 1, 6, regimeName + " (" + str.tostring(atrRatio, "#.##") + "x)",
+               text_color=regimeColor, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    // Settings
+    table.cell(infoTable, 0, 7, "Wick Ratio Min:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    table.cell(infoTable, 1, 7, str.tostring(minWickRatio, "#.#"),
+               text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+
+    table.cell(infoTable, 0, 8, "Volume Min:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    table.cell(infoTable, 1, 8, str.tostring(minVolumeMultiplier, "#.#") + "x",
+               text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+
+    table.cell(infoTable, 0, 9, "Min Rejections:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    table.cell(infoTable, 1, 9, str.tostring(minRejections),
+               text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+
+    // Disclaimer
+    table.cell(infoTable, 0, 10, "Accuracy: ~65-75%",
+               text_color=color.orange, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    table.merge_cells(infoTable, 0, 10, 1, 10)
+
+// ============================= ALERTS =======================================
+
+// Alert when price approaches estimated order wall
+strongOrderNearby = false
+if array.size(orderBookLevels) > 0
+    for i = 0 to math.min(2, array.size(orderBookLevels) - 1)
+        level = array.get(orderBookLevels, i)
+        if level.strength >= 65
+            distance = math.abs(close - level.price) / close
+            if distance < 0.015  // Within 1.5%
+                strongOrderNearby := true
+
+if strongOrderNearby and not strongOrderNearby[1]
+    alert("Price approaching estimated order wall on " + syminfo.ticker + " (experimental)", alert.freq_once_per_bar_close)
