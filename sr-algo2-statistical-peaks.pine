@@ -1,0 +1,475 @@
+//@version=5
+indicator("S/R Algo 2: Statistical Peak/Trough Detection", shorttitle="S/R Statistical", overlay=true, max_lines_count=50, max_labels_count=20)
+
+// ============================================================================
+// S/R ALGORITHM 2: STATISTICAL PEAK/TROUGH DETECTION WITH CLUSTERING
+// ============================================================================
+// Identifies support/resistance levels by clustering swing highs/lows
+// Uses temporal decay and confluence scoring for strength assessment
+// Target Accuracy: 70-80% for near-term S/R
+// ============================================================================
+
+// ============================= INPUTS =======================================
+
+// Swing Point Detection
+swingLeftBars = input.int(10, "Swing Detection - Left Bars", minval=5, maxval=50, group="Swing Detection", tooltip="Bars to the left of pivot for confirmation")
+swingRightBars = input.int(10, "Swing Detection - Right Bars", minval=5, maxval=50, group="Swing Detection", tooltip="Bars to the right of pivot for confirmation")
+minProminence = input.float(0.02, "Minimum Prominence %", minval=0.01, maxval=0.10, step=0.01, group="Swing Detection", tooltip="Minimum price move % to qualify as significant swing")
+
+// Clustering Settings
+clusterEpsilon = input.float(0.015, "Cluster Tolerance %", minval=0.005, maxval=0.05, step=0.005, group="Clustering", tooltip="Maximum distance between levels to cluster (1.5% default)")
+minClusterSize = input.int(2, "Minimum Cluster Size", minval=1, maxval=5, group="Clustering", tooltip="Minimum touches to form strong S/R level")
+
+// Temporal Decay
+decayRate = input.float(0.95, "Temporal Decay Rate", minval=0.85, maxval=0.99, step=0.01, group="Temporal Decay", tooltip="Exponential decay per bar (0.95 = 5% decay)")
+recentBoostBars = input.int(20, "Recent Activity Boost Bars", minval=10, maxval=50, group="Temporal Decay", tooltip="Boost strength if touched within this many bars")
+
+// Confluence Detection
+enableFibonacci = input.bool(true, "Enable Fibonacci Confluence", group="Confluence", tooltip="Check alignment with Fibonacci retracement levels")
+enableMovingAverages = input.bool(true, "Enable MA Confluence", group="Confluence", tooltip="Check alignment with major moving averages")
+enablePsychological = input.bool(true, "Enable Psychological Levels", group="Confluence", tooltip="Check alignment with round numbers")
+fibLookback = input.int(100, "Fibonacci Lookback", minval=50, maxval=300, group="Confluence", tooltip="Bars for Fibonacci swing calculation")
+
+// Strength Filtering
+minStrength = input.int(50, "Minimum Strength to Display", minval=30, maxval=80, group="Display", tooltip="Only show S/R levels above this strength score")
+maxLevels = input.int(10, "Maximum Levels to Display", minval=5, maxval=20, group="Display", tooltip="Maximum number of S/R levels to show")
+showLabels = input.bool(true, "Show Strength Labels", group="Display")
+showZones = input.bool(false, "Show S/R Zones (instead of lines)", group="Display", tooltip="Display as shaded zones instead of lines")
+
+// Regime Detection (duplicated from TECH-DEBT.md standards)
+useRegimeFilter = input.bool(true, "Enable Regime-Aware Scoring", group="Regime Detection", tooltip="Adjust strength based on volatility regime")
+atrLength = input.int(14, "ATR Length", minval=7, maxval=50, group="Regime Detection")
+atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Regime Detection")
+
+// ============================= REGIME DETECTION =============================
+// Duplicated from TECH-DEBT.md - Section 1: Regime Detection Logic
+// Standard parameters: ATR_LENGTH=14, ATR_LOOKBACK=50, HIGH_VOL=1.3, LOW_VOL=0.7
+
+currentATR = ta.atr(atrLength)
+avgATR = ta.sma(ta.atr(atrLength), atrLookback)
+atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
+
+isHighVol = atrRatio > 1.3
+isLowVol = atrRatio < 0.7
+isNormalVol = not isHighVol and not isLowVol
+
+regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
+regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85  // Boost in low vol, reduce in high vol
+
+// ============================= SWING POINT DETECTION ========================
+
+// Use native PineScript pivot detection (much more efficient than manual loop)
+pivotHigh = ta.pivothigh(high, swingLeftBars, swingRightBars)
+pivotLow = ta.pivotlow(low, swingLeftBars, swingRightBars)
+
+// Store swing points in arrays
+var array<float> resistanceLevels = array.new_float()
+var array<int> resistanceBarIndices = array.new_int()
+var array<float> supportLevels = array.new_float()
+var array<int> supportBarIndices = array.new_int()
+
+// Lookback period for storing swing points
+maxSwingHistory = 200
+
+// Calculate prominence values OUTSIDE if-blocks (PineScript requirement)
+leftMinResistance = ta.lowest(low, swingLeftBars)[swingRightBars]
+rightMinResistance = ta.lowest(low, swingRightBars)
+leftMaxSupport = ta.highest(high, swingLeftBars)[swingRightBars]
+rightMaxSupport = ta.highest(high, swingRightBars)
+
+// Detect new swing highs (resistance)
+if not na(pivotHigh)
+    // Check prominence (minimum price move to qualify)
+    prominence = pivotHigh - math.max(leftMinResistance, rightMinResistance)
+    prominencePercent = prominence / pivotHigh
+
+    if prominencePercent >= minProminence
+        // Add to resistance array
+        array.push(resistanceLevels, pivotHigh)
+        array.push(resistanceBarIndices, bar_index - swingRightBars)
+
+        // Limit array size for performance
+        if array.size(resistanceLevels) > maxSwingHistory
+            array.shift(resistanceLevels)
+            array.shift(resistanceBarIndices)
+
+// Detect new swing lows (support)
+if not na(pivotLow)
+    // Check prominence
+    prominence = math.min(leftMaxSupport, rightMaxSupport) - pivotLow
+    prominencePercent = prominence / pivotLow
+
+    if prominencePercent >= minProminence
+        // Add to support array
+        array.push(supportLevels, pivotLow)
+        array.push(supportBarIndices, bar_index - swingRightBars)
+
+        // Limit array size
+        if array.size(supportLevels) > maxSwingHistory
+            array.shift(supportLevels)
+            array.shift(supportBarIndices)
+
+// ============================= CLUSTERING ALGORITHM =========================
+
+// Function to cluster nearby levels (DBSCAN-like approach)
+clusterLevels(array<float> levels, array<int> barIndices, string levelType) =>
+    var array<float> clusterCenters = array.new_float()
+    var array<int> clusterCounts = array.new_int()
+    var array<int> clusterMostRecentBar = array.new_int()
+
+    // Clear previous clusters
+    array.clear(clusterCenters)
+    array.clear(clusterCounts)
+    array.clear(clusterMostRecentBar)
+
+    if array.size(levels) == 0
+        [clusterCenters, clusterCounts, clusterMostRecentBar]
+    else
+        // Track which points have been clustered
+        var array<bool> visited = array.new_bool()
+        array.clear(visited)
+        for i = 0 to array.size(levels) - 1
+            array.push(visited, false)
+
+        // Cluster each point (with bounds safety)
+        for i = 0 to array.size(levels) - 1
+            if i < array.size(visited) and not array.get(visited, i)
+                currentLevel = array.get(levels, i)
+                currentBar = array.get(barIndices, i)
+
+                // Find all neighbors within epsilon distance
+                var array<float> clusterMembers = array.new_float()
+                var array<int> clusterBars = array.new_int()
+                array.clear(clusterMembers)
+                array.clear(clusterBars)
+
+                array.push(clusterMembers, currentLevel)
+                array.push(clusterBars, currentBar)
+                array.set(visited, i, true)
+
+                // Find neighbors (with bounds check)
+                if i + 1 < array.size(levels)
+                    for j = i + 1 to array.size(levels) - 1
+                        if j < array.size(visited) and not array.get(visited, j)
+                            otherLevel = array.get(levels, j)
+                            distance = math.abs(currentLevel - otherLevel) / currentLevel
+
+                            if distance <= clusterEpsilon
+                                array.push(clusterMembers, otherLevel)
+                                array.push(clusterBars, array.get(barIndices, j))
+                                array.set(visited, j, true)
+
+                // Calculate cluster center (average of members)
+                if array.size(clusterMembers) >= minClusterSize
+                    clusterCenter = array.avg(clusterMembers)
+                    clusterCount = array.size(clusterMembers)
+                    mostRecentBar = array.max(clusterBars)
+
+                    array.push(clusterCenters, clusterCenter)
+                    array.push(clusterCounts, clusterCount)
+                    array.push(clusterMostRecentBar, mostRecentBar)
+
+        [clusterCenters, clusterCounts, clusterMostRecentBar]
+
+// Cluster resistance and support levels (ONLY ON LAST BAR for performance)
+var array<float> resistanceClusters = array.new_float()
+var array<int> resistanceCounts = array.new_int()
+var array<int> resistanceRecentBars = array.new_int()
+var array<float> supportClusters = array.new_float()
+var array<int> supportCounts = array.new_int()
+var array<int> supportRecentBars = array.new_int()
+
+if barstate.islast
+    [tempResClusters, tempResCounts, tempResBars] = clusterLevels(resistanceLevels, resistanceBarIndices, "resistance")
+    [tempSupClusters, tempSupCounts, tempSupBars] = clusterLevels(supportLevels, supportBarIndices, "support")
+
+    // Copy to var arrays
+    array.clear(resistanceClusters)
+    array.clear(resistanceCounts)
+    array.clear(resistanceRecentBars)
+    array.clear(supportClusters)
+    array.clear(supportCounts)
+    array.clear(supportRecentBars)
+
+    array.concat(resistanceClusters, tempResClusters)
+    array.concat(resistanceCounts, tempResCounts)
+    array.concat(resistanceRecentBars, tempResBars)
+    array.concat(supportClusters, tempSupClusters)
+    array.concat(supportCounts, tempSupCounts)
+    array.concat(supportRecentBars, tempSupBars)
+
+// ============================= CONFLUENCE DETECTION =========================
+
+// Calculate Fibonacci levels
+fibHigh = ta.highest(high, fibLookback)
+fibLow = ta.lowest(low, fibLookback)
+fibRange = fibHigh - fibLow
+
+fib236 = fibHigh - (fibRange * 0.236)
+fib382 = fibHigh - (fibRange * 0.382)
+fib500 = fibHigh - (fibRange * 0.500)
+fib618 = fibHigh - (fibRange * 0.618)
+fib786 = fibHigh - (fibRange * 0.786)
+
+var array<float> fibLevels = array.from(fib236, fib382, fib500, fib618, fib786)
+
+// Calculate major moving averages
+ma50 = ta.sma(close, 50)
+ma100 = ta.sma(close, 100)
+ma200 = ta.sma(close, 200)
+
+var array<float> maLevels = array.from(ma50, ma100, ma200)
+
+// Function to check if price is near a reference level
+isNearLevel(price, refLevel, tolerance) =>
+    distance = math.abs(price - refLevel) / price
+    distance < tolerance
+
+// Function to check if level is psychological (round number)
+isPsychologicalLevel(price) =>
+    // Check if price is close to round numbers
+    significant_digits = math.floor(math.log10(price))
+    power = math.pow(10, significant_digits)
+    round_number = math.round(price / power) * power
+
+    distance = math.abs(price - round_number) / price
+    distance < 0.02  // Within 2%
+
+// Function to calculate confluence bonus
+calculateConfluence(price) =>
+    confluenceBonus = 0
+    confluenceCount = 0
+
+    // Check Fibonacci confluence
+    if enableFibonacci and array.size(fibLevels) > 0
+        for i = 0 to array.size(fibLevels) - 1
+            if isNearLevel(price, array.get(fibLevels, i), 0.005)
+                confluenceBonus += 15
+                confluenceCount += 1
+
+    // Check MA confluence
+    if enableMovingAverages and array.size(maLevels) > 0
+        for i = 0 to array.size(maLevels) - 1
+            if isNearLevel(price, array.get(maLevels, i), 0.01)
+                confluenceBonus += 10
+                confluenceCount += 1
+
+    // Check psychological level
+    if enablePsychological and isPsychologicalLevel(price)
+        confluenceBonus += 8
+        confluenceCount += 1
+
+    [confluenceBonus, confluenceCount]
+
+// ============================= STRENGTH SCORING =============================
+
+// Function to calculate level strength with all factors
+calculateStrength(price, touchCount, mostRecentBar, levelType) =>
+    // Base strength from touch count (more touches = stronger)
+    baseStrength = 30 + (touchCount - 1) * 15  // 30 for first touch, +15 for each additional
+
+    // Temporal decay (recent levels stronger)
+    barsAgo = bar_index - mostRecentBar
+    decayFactor = math.pow(decayRate, barsAgo)
+
+    // Recent activity boost
+    recentBoost = barsAgo < recentBoostBars ? 1.2 : 1.0
+
+    // Distance weighting (levels near current price more relevant)
+    distance = math.abs(close - price) / close
+    distanceMultiplier = distance < 0.05 ? 1.0 : math.max(0.5, 1.0 - distance)
+
+    // Confluence bonus
+    [confluenceBonus, confluenceCount] = calculateConfluence(price)
+
+    // Regime adjustment
+    regimeAdjustment = useRegimeFilter ? regimeMultiplier : 1.0
+
+    // Calculate final strength
+    finalStrength = (baseStrength * decayFactor * recentBoost * distanceMultiplier * regimeAdjustment) + confluenceBonus
+
+    // Cap at 100
+    strength = math.min(100, finalStrength)
+
+    [strength, confluenceCount]
+
+// ============================= PREPARE DISPLAY DATA =========================
+
+// Combine all levels with strength scores
+type LevelData
+    float price
+    float strength
+    int touchCount
+    int confluenceCount
+    string levelType
+    color levelColor
+
+var array<LevelData> allLevels = array.new<LevelData>()
+
+// Process on last bar only for performance
+if barstate.islast
+    array.clear(allLevels)
+
+    // Process resistance clusters
+    if array.size(resistanceClusters) > 0
+        for i = 0 to array.size(resistanceClusters) - 1
+            price = array.get(resistanceClusters, i)
+            touchCount = array.get(resistanceCounts, i)
+            recentBar = array.get(resistanceRecentBars, i)
+
+            [strength, confluenceCount] = calculateStrength(price, touchCount, recentBar, "resistance")
+
+            if strength >= minStrength
+                levelData = LevelData.new(
+                     price = price,
+                     strength = strength,
+                     touchCount = touchCount,
+                     confluenceCount = confluenceCount,
+                     levelType = "R",
+                     levelColor = strength >= 75 ? color.new(color.red, 0) :
+                                 strength >= 60 ? color.new(color.orange, 20) :
+                                 color.new(color.gray, 40)
+                 )
+                array.push(allLevels, levelData)
+
+    // Process support clusters
+    if array.size(supportClusters) > 0
+        for i = 0 to array.size(supportClusters) - 1
+            price = array.get(supportClusters, i)
+            touchCount = array.get(supportCounts, i)
+            recentBar = array.get(supportRecentBars, i)
+
+            [strength, confluenceCount] = calculateStrength(price, touchCount, recentBar, "support")
+
+            if strength >= minStrength
+                levelData = LevelData.new(
+                     price = price,
+                     strength = strength,
+                     touchCount = touchCount,
+                     confluenceCount = confluenceCount,
+                     levelType = "S",
+                     levelColor = strength >= 75 ? color.new(color.green, 0) :
+                                 strength >= 60 ? color.new(color.lime, 20) :
+                                 color.new(color.gray, 40)
+                 )
+                array.push(allLevels, levelData)
+
+    // Sort by strength (strongest first)
+    if array.size(allLevels) > 1
+        // Bubble sort (simple for small arrays)
+        for i = 0 to array.size(allLevels) - 1
+            for j = 0 to array.size(allLevels) - 2 - i
+                if array.get(allLevels, j).strength < array.get(allLevels, j + 1).strength
+                    // Swap
+                    temp = array.get(allLevels, j)
+                    array.set(allLevels, j, array.get(allLevels, j + 1))
+                    array.set(allLevels, j + 1, temp)
+
+    // Note: Limiting to maxLevels happens during drawing loop below
+
+// ============================= VISUALIZATION ================================
+
+// Draw S/R levels
+if barstate.islast and array.size(allLevels) > 0
+    levelsDrawn = 0
+
+    for i = 0 to math.min(maxLevels - 1, array.size(allLevels) - 1)
+        level = array.get(allLevels, i)
+
+        if showZones
+            // Draw as zones (boxes)
+            zoneHeight = level.price * 0.003  // 0.3% zone height
+            box.new(
+                 bar_index - 50,
+                 level.price - zoneHeight,
+                 bar_index + 10,
+                 level.price + zoneHeight,
+                 border_color = level.levelColor,
+                 bgcolor = color.new(level.levelColor, 90),
+                 border_width = 1
+             )
+        else
+            // Draw as lines
+            line.new(
+                 bar_index - 50,
+                 level.price,
+                 bar_index + 10,
+                 level.price,
+                 color = level.levelColor,
+                 width = level.strength >= 75 ? 2 : 1,
+                 style = level.strength >= 60 ? line.style_solid : line.style_dashed
+             )
+
+        if showLabels
+            labelText = level.levelType + " " + str.tostring(math.round(level.strength))
+            if level.confluenceCount > 0
+                labelText += " ⭐" + str.tostring(level.confluenceCount)
+
+            label.new(
+                 bar_index + 5,
+                 level.price,
+                 text = labelText,
+                 style = level.levelType == "R" ? label.style_label_down : label.style_label_up,
+                 color = level.levelColor,
+                 textcolor = color.white,
+                 size = size.small
+             )
+
+        levelsDrawn += 1
+
+// ============================= INFO TABLE ===================================
+
+var table infoTable = table.new(position.top_right, 2, 8, border_width=1)
+
+if barstate.islast
+    // Header
+    table.cell(infoTable, 0, 0, "S/R Statistical Detection",
+               text_color=color.white, bgcolor=color.new(color.blue, 30), text_size=size.normal)
+    table.merge_cells(infoTable, 0, 0, 1, 0)
+
+    // Stats
+    table.cell(infoTable, 0, 1, "Active Levels:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(math.min(maxLevels, array.size(allLevels))),
+               text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    table.cell(infoTable, 0, 2, "Resistance Clusters:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(array.size(resistanceClusters)),
+               text_color=color.red, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    table.cell(infoTable, 0, 3, "Support Clusters:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    table.cell(infoTable, 1, 3, str.tostring(array.size(supportClusters)),
+               text_color=color.green, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    table.cell(infoTable, 0, 4, "Regime:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    regimeColor = isLowVol ? color.green : isHighVol ? color.red : color.orange
+    table.cell(infoTable, 1, 4, regimeName + " (" + str.tostring(atrRatio, "#.##") + "x)",
+               text_color=regimeColor, bgcolor=color.new(color.gray, 70), text_size=size.small)
+
+    // Settings summary
+    table.cell(infoTable, 0, 5, "Cluster Tolerance:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    table.cell(infoTable, 1, 5, str.tostring(clusterEpsilon * 100, "#.#") + "%",
+               text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+
+    table.cell(infoTable, 0, 6, "Min Strength:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    table.cell(infoTable, 1, 6, str.tostring(minStrength),
+               text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+
+    table.cell(infoTable, 0, 7, "Confluence:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+    confluenceStatus = (enableFibonacci ? "F" : "") + (enableMovingAverages ? "M" : "") + (enablePsychological ? "P" : "")
+    table.cell(infoTable, 1, 7, confluenceStatus == "" ? "None" : confluenceStatus,
+               text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
+
+// ============================= ALERTS =======================================
+
+// Alert when price approaches strong S/R level
+strongLevelNearby = false
+if array.size(allLevels) > 0
+    for i = 0 to math.min(2, array.size(allLevels) - 1)  // Check top 3 levels
+        level = array.get(allLevels, i)
+        if level.strength >= 70
+            distance = math.abs(close - level.price) / close
+            if distance < 0.01  // Within 1%
+                strongLevelNearby := true
+
+if strongLevelNearby and not strongLevelNearby[1]
+    alert("Price approaching strong S/R level on " + syminfo.ticker, alert.freq_once_per_bar_close)
