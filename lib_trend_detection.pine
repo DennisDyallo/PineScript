@@ -1,0 +1,184 @@
+//@version=5
+// @description Trend detection utilities using EMA and ADX for institutional indicators
+// @version 1.0.0
+library("TrendDetection")
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+// @type Trend data containing direction and strength information
+// @field isUptrend True if price is in uptrend (EMA alignment bullish)
+// @field isDowntrend True if price is in downtrend (EMA alignment bearish)
+// @field isRanging True if not trending (neither up nor down)
+// @field adxValue Current ADX value (trend strength 0-100)
+// @field isTrending True if ADX above threshold (default 25)
+// @field isStrongTrend True if ADX above strong threshold (35+)
+export type TrendData
+    bool isUptrend
+    bool isDowntrend
+    bool isRanging
+    float adxValue
+    bool isTrending
+    bool isStrongTrend
+
+// ============================================================================
+// EMA-BASED TREND DETECTION
+// ============================================================================
+
+// @function Detects trend using EMA alignment
+// @param shortPeriod Short-term EMA period (default: 20)
+// @param midPeriod Medium-term EMA period (default: 50)
+// @param longPeriod Long-term EMA period (default: 200)
+// @returns Tuple [isUptrend, isDowntrend, isRanging]
+// @example [isUp, isDown, isRange] = detectEMATrend() => Standard 20/50/200 EMA trend
+export detectEMATrend(
+     simple int shortPeriod = 20,
+     simple int midPeriod = 50,
+     simple int longPeriod = 200) =>
+
+    // Calculate EMAs
+    ema20 = ta.ema(close, shortPeriod)
+    ema50 = ta.ema(close, midPeriod)
+    ema200 = ta.ema(close, longPeriod)
+
+    // Uptrend: Close > EMA50 AND EMA20 > EMA50 AND EMA50 > EMA200
+    // All moving averages aligned bullishly
+    isUptrend = close > ema50 and ema20 > ema50 and ema50 > ema200
+
+    // Downtrend: Close < EMA50 AND EMA20 < EMA50 AND EMA50 < EMA200
+    // All moving averages aligned bearishly
+    isDowntrend = close < ema50 and ema20 < ema50 and ema50 < ema200
+
+    // Ranging: Neither clear uptrend nor downtrend
+    isRanging = not isUptrend and not isDowntrend
+
+    [isUptrend, isDowntrend, isRanging]
+
+// @function Detects trend using simplified EMA alignment (50/200 only)
+// @returns Tuple [isUptrend, isDowntrend, isRanging]
+export detectEMATrendSimple() =>
+    ema50 = ta.ema(close, 50)
+    ema200 = ta.ema(close, 200)
+
+    isUptrend = close > ema50 and ema50 > ema200
+    isDowntrend = close < ema50 and ema50 < ema200
+    isRanging = not isUptrend and not isDowntrend
+
+    [isUptrend, isDowntrend, isRanging]
+
+// ============================================================================
+// ADX-BASED TREND STRENGTH
+// ============================================================================
+
+// @function Detects trend strength using ADX
+// @param length ADX calculation period (default: 14)
+// @param trendingThreshold ADX value above which market is trending (default: 25)
+// @param strongTrendThreshold ADX value for strong trend (default: 35)
+// @returns TrendData object with ADX-based trend analysis
+// @example trend = detectADXTrend() => Standard 14-period ADX trend strength
+export detectADXTrend(
+     simple int length = 14,
+     simple float trendingThreshold = 25.0,
+     simple float strongTrendThreshold = 35.0) =>
+
+    // Calculate ADX (Average Directional Index)
+    [diPlus, diMinus, adxValue] = ta.dmi(length, length)
+
+    // Determine trend strength
+    isTrending = adxValue > trendingThreshold
+    isStrongTrend = adxValue > strongTrendThreshold
+
+    // Determine direction based on DI+ vs DI-
+    // If trending, use DI comparison; otherwise mark as ranging
+    isUptrend = isTrending and diPlus > diMinus
+    isDowntrend = isTrending and diMinus > diPlus
+    isRanging = not isTrending
+
+    // Return trend data
+    TrendData.new(isUptrend, isDowntrend, isRanging, adxValue, isTrending, isStrongTrend)
+
+// @function Simplified ADX trend detection with standard parameters
+// @returns TrendData object
+export detectADXTrendSimple() =>
+    detectADXTrend(14, 25.0, 35.0)
+
+// ============================================================================
+// COMBINED TREND DETECTION
+// ============================================================================
+
+// @function Combines EMA and ADX for robust trend detection
+// @param emaShort Short EMA period (default: 20)
+// @param emaMid Mid EMA period (default: 50)
+// @param emaLong Long EMA period (default: 200)
+// @param adxLength ADX period (default: 14)
+// @param adxThreshold ADX trending threshold (default: 25)
+// @returns TrendData object with combined EMA + ADX analysis
+export detectTrendCombined(
+     simple int emaShort = 20,
+     simple int emaMid = 50,
+     simple int emaLong = 200,
+     simple int adxLength = 14,
+     simple float adxThreshold = 25.0) =>
+
+    // Get EMA trend
+    [emaUp, emaDown, emaRange] = detectEMATrend(emaShort, emaMid, emaLong)
+
+    // Get ADX trend strength
+    [diPlus, diMinus, adxValue] = ta.dmi(adxLength, adxLength)
+    isTrending = adxValue > adxThreshold
+    isStrongTrend = adxValue > 35.0
+
+    // Combined trend: EMA direction + ADX strength confirmation
+    // Only signal trend if both agree
+    isUptrend = emaUp and isTrending and diPlus > diMinus
+    isDowntrend = emaDown and isTrending and diMinus > diPlus
+    isRanging = not isUptrend and not isDowntrend
+
+    TrendData.new(isUptrend, isDowntrend, isRanging, adxValue, isTrending, isStrongTrend)
+
+// ============================================================================
+// TREND UTILITIES
+// ============================================================================
+
+// @function Gets trend direction as string
+// @param trend TrendData object
+// @returns String: "Uptrend", "Downtrend", or "Ranging"
+export getTrendDirection(TrendData trend) =>
+    trend.isUptrend ? "Uptrend" :
+    trend.isDowntrend ? "Downtrend" :
+    "Ranging"
+
+// @function Gets trend color for visualization
+// @param trend TrendData object
+// @returns Color: green for up, red for down, gray for ranging
+export getTrendColor(TrendData trend) =>
+    trend.isUptrend ? color.new(color.green, 70) :
+    trend.isDowntrend ? color.new(color.red, 70) :
+    color.new(color.gray, 70)
+
+// @function Encodes trend as numeric value for data bridge export
+// @param trend TrendData object
+// @returns Numeric encoding: 1.0=Uptrend, 0.0=Ranging, -1.0=Downtrend
+export encodeTrend(TrendData trend) =>
+    trend.isUptrend ? 1.0 :
+    trend.isDowntrend ? -1.0 :
+    0.0
+
+// @function Decodes numeric trend value back to string
+// @param encoded Encoded trend value
+// @returns Trend string
+export decodeTrend(float encoded) =>
+    encoded > 0.5 ? "Uptrend" :
+    encoded < -0.5 ? "Downtrend" :
+    "Ranging"
+
+// @function Calculates trend strength score (0-100)
+// @param trend TrendData object
+// @returns Score combining ADX strength and direction
+export getTrendStrength(TrendData trend) =>
+    // ADX provides base strength (0-100)
+    // Add bonus if direction confirmed by EMA
+    baseStrength = trend.adxValue
+    directionBonus = (trend.isUptrend or trend.isDowntrend) ? 10.0 : 0.0
+    math.min(100, baseStrength + directionBonus)

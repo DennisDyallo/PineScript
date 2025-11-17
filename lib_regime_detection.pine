@@ -1,0 +1,106 @@
+//@version=5
+// @description ATR-based volatility regime detection for institutional trading indicators
+// @version 1.0.0
+library("RegimeDetection")
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+// @type Regime detection data containing volatility classification and multipliers
+// @field name Regime name: "High Vol", "Low Vol", or "Normal Vol"
+// @field atrRatio Current ATR divided by average ATR
+// @field multiplier Strength adjustment multiplier (0.85 for high vol, 1.0 for normal, 1.15 for low vol)
+// @field isHighVol True if current volatility is high (atrRatio > 1.3)
+// @field isLowVol True if current volatility is low (atrRatio < 0.7)
+// @field isNormalVol True if volatility is in normal range
+export type RegimeData
+    string name
+    float atrRatio
+    float multiplier
+    bool isHighVol
+    bool isLowVol
+    bool isNormalVol
+
+// ============================================================================
+// REGIME DETECTION FUNCTIONS
+// ============================================================================
+
+// @function Detects current volatility regime based on ATR analysis
+// @param atrLength Period for ATR calculation (default: 14, standard)
+// @param atrLookback Period for average ATR calculation (default: 50)
+// @param highVolThreshold Ratio threshold for high volatility (default: 1.3 = 30% above average)
+// @param lowVolThreshold Ratio threshold for low volatility (default: 0.7 = 30% below average)
+// @param lowVolMultiplier Strength multiplier for low vol regime (default: 1.15 = +15%)
+// @param normalVolMultiplier Strength multiplier for normal vol regime (default: 1.0 = no change)
+// @param highVolMultiplier Strength multiplier for high vol regime (default: 0.85 = -15%)
+// @returns RegimeData object with current regime classification
+// @example regime = detectRegime() => Default ATR-based regime detection
+// @example regime = detectRegime(14, 50, 1.5, 0.5) => Custom thresholds
+export detectRegime(
+     simple int atrLength = 14,
+     simple int atrLookback = 50,
+     simple float highVolThreshold = 1.3,
+     simple float lowVolThreshold = 0.7,
+     simple float lowVolMultiplier = 1.15,
+     simple float normalVolMultiplier = 1.0,
+     simple float highVolMultiplier = 0.85) =>
+
+    // Calculate current and average ATR
+    currentATR = ta.atr(atrLength)
+    avgATR = ta.sma(ta.atr(atrLength), atrLookback)
+
+    // Calculate ATR ratio with safety check
+    atrRatio = avgATR > 0 and not na(avgATR) and not na(currentATR) ?
+         currentATR / avgATR :
+         1.0
+
+    // Classify regime based on thresholds
+    isHighVol = atrRatio > highVolThreshold
+    isLowVol = atrRatio < lowVolThreshold
+    isNormalVol = not isHighVol and not isLowVol
+
+    // Determine regime name
+    name = isHighVol ? "High Vol" :
+           isLowVol ? "Low Vol" :
+           "Normal Vol"
+
+    // Determine strength multiplier
+    // Low vol = accumulation/distribution more reliable = boost strength
+    // High vol = noise increases = reduce strength
+    multiplier = isLowVol ? lowVolMultiplier :
+                 isNormalVol ? normalVolMultiplier :
+                 highVolMultiplier
+
+    // Return regime data
+    RegimeData.new(name, atrRatio, multiplier, isHighVol, isLowVol, isNormalVol)
+
+// @function Simple regime detection with standard parameters (convenience wrapper)
+// @returns RegimeData object with standard ATR-based regime
+export detectRegimeSimple() =>
+    detectRegime(14, 50, 1.3, 0.7, 1.15, 1.0, 0.85)
+
+// @function Gets regime color for visualization
+// @param regime RegimeData object
+// @returns Color: red for high vol, green for low vol, gray for normal
+export getRegimeColor(RegimeData regime) =>
+    regime.isHighVol ? color.new(color.red, 70) :
+    regime.isLowVol ? color.new(color.green, 70) :
+    color.new(color.gray, 70)
+
+// @function Encodes regime as numeric value for data bridge export
+// @param regime RegimeData object
+// @returns Numeric encoding: 3.0=High Vol, 2.0=Normal Vol, 1.0=Low Vol
+export encodeRegime(RegimeData regime) =>
+    regime.isHighVol ? 3.0 :
+    regime.isNormalVol ? 2.0 :
+    1.0
+
+// @function Decodes numeric regime value back to string
+// @param encoded Encoded regime value (from encodeRegime)
+// @returns Regime name string
+export decodeRegime(float encoded) =>
+    encoded > 2.5 ? "High Vol" :
+    encoded > 1.5 ? "Normal Vol" :
+    encoded > 0.5 ? "Low Vol" :
+    "Unknown"

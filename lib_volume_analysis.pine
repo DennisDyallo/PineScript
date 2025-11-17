@@ -1,0 +1,155 @@
+//@version=5
+// @description Volume analysis utilities for institutional trading indicators
+// @version 1.0.0
+library("VolumeAnalysis")
+
+// NOTE: This library will import CoreMath after it's published
+// For now, we'll include safe division inline
+
+// ============================================================================
+// INLINE SAFE MATH (temporary until CoreMath library is published)
+// ============================================================================
+
+// Safe division with NA protection
+_safeDivide(float numerator, float denominator, float defaultValue = 1.0) =>
+    denominator > 0 and not na(denominator) and not na(numerator) ?
+         numerator / denominator :
+         defaultValue
+
+// Safe range calculation
+_safeRange(float priceRange, float close, float minPercent = 0.001) =>
+    minAllowed = close * minPercent
+    math.max(priceRange, minAllowed)
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+// @type Volume metrics and analysis data
+// @field relativeVolume Current volume divided by average volume
+// @field volumeEfficiency Volume divided by price range (volume per point moved)
+// @field efficiencyRatio Current efficiency divided by average efficiency
+// @field volumeScore Normalized score 0-50 based on relative volume
+export type VolumeMetrics
+    float relativeVolume
+    float volumeEfficiency
+    float efficiencyRatio
+    float volumeScore
+
+// ============================================================================
+// VOLUME CALCULATION FUNCTIONS
+// ============================================================================
+
+// @function Calculates comprehensive volume metrics for current bar
+// @param lookback Period for average calculations (default: 20)
+// @param minRangePercent Minimum price range as % of close to prevent division errors (default: 0.001 = 0.1%)
+// @returns VolumeMetrics object with all volume analysis data
+// @example volMetrics = calculateVolumeMetrics(20) => Standard 20-period volume analysis
+export calculateVolumeMetrics(simple int lookback = 20, simple float minRangePercent = 0.001) =>
+
+    // Calculate relative volume (volume vs average volume)
+    avgVolume = ta.sma(volume, lookback)
+    relVol = _safeDivide(volume, avgVolume, 1.0)
+
+    // Calculate volume efficiency (volume / price range)
+    priceRange = high - low
+    safeRange = _safeRange(priceRange, close, minRangePercent)
+    volEfficiency = volume / safeRange
+
+    // Calculate efficiency ratio (current vs average efficiency)
+    avgVolEfficiency = ta.sma(volEfficiency, lookback)
+    effRatio = _safeDivide(volEfficiency, avgVolEfficiency, 1.0)
+
+    // Calculate volume score (0-50 range, normalized)
+    // Above-average volume (relVol > 1.0) scores higher
+    // Score = (relVol - 1.0) * 25, clamped to 0-50
+    volScore = math.min(50, math.max(0, (relVol - 1.0) * 25.0))
+
+    // Return volume metrics
+    VolumeMetrics.new(relVol, volEfficiency, effRatio, volScore)
+
+// @function Simplified volume metrics with standard parameters (convenience wrapper)
+// @returns VolumeMetrics object with 20-period lookback
+export calculateVolumeMetricsSimple() =>
+    calculateVolumeMetrics(20, 0.001)
+
+// ============================================================================
+// VOLUME THRESHOLD DETECTION
+// ============================================================================
+
+// @function Checks if current volume exceeds threshold
+// @param metrics VolumeMetrics object
+// @param threshold Relative volume threshold (default: 1.5 = 50% above average)
+// @returns True if volume is above threshold
+export isVolumeAboveThreshold(VolumeMetrics metrics, float threshold = 1.5) =>
+    metrics.relativeVolume > threshold
+
+// @function Checks if volume efficiency exceeds threshold
+// @param metrics VolumeMetrics object
+// @param threshold Efficiency ratio threshold (default: 1.5)
+// @returns True if efficiency is above threshold
+export isEfficiencyAboveThreshold(VolumeMetrics metrics, float threshold = 1.5) =>
+    metrics.efficiencyRatio > threshold
+
+// ============================================================================
+// VOLUME-WEIGHTED CALCULATIONS
+// ============================================================================
+
+// @function Calculates volume weight for current bar (sqrt dampening)
+// @param metrics VolumeMetrics object
+// @returns Volume weight using sqrt to dampen outliers
+// @example weight = calculateVolumeWeight(metrics) => 1.0 for avg volume, higher for elevated volume
+export calculateVolumeWeight(VolumeMetrics metrics) =>
+    // Use square root to dampen extreme volume spikes
+    // relVol = 4.0 (4× avg) => weight = 2.0 (sqrt dampening)
+    // relVol = 1.0 (avg) => weight = 1.0
+    math.sqrt(metrics.relativeVolume)
+
+// @function Calculates volume-weighted touch count increment
+// @param metrics VolumeMetrics object
+// @returns Float increment for touch counting (1.0 for avg volume, higher for elevated)
+export calculateVolumeWeightedIncrement(VolumeMetrics metrics) =>
+    // Standard touch count increment is volume-weighted
+    // Average volume = 1.0 increment
+    // 2× average volume = 1.414 increment (sqrt(2))
+    // 4× average volume = 2.0 increment (sqrt(4))
+    calculateVolumeWeight(metrics)
+
+// ============================================================================
+// VOLUME DIVERGENCE DETECTION
+// ============================================================================
+
+// @function Detects price/volume divergence
+// @param priceChange Price change over period
+// @param metrics VolumeMetrics object
+// @param threshold Divergence threshold (default: 0.5)
+// @returns True if divergence detected (price moves but volume doesn't, or vice versa)
+export detectVolumeDivergence(float priceChange, VolumeMetrics metrics, float threshold = 0.5) =>
+    // Price increasing but volume decreasing = bearish divergence
+    // Price decreasing but volume increasing = bullish divergence
+    priceMagnitude = math.abs(priceChange)
+    volumeDelta = metrics.relativeVolume - 1.0
+
+    // Divergence if price and volume move in opposite directions
+    (priceChange > threshold and volumeDelta < -threshold) or
+    (priceChange < -threshold and volumeDelta > threshold)
+
+// ============================================================================
+// VOLUME REGIME CLASSIFICATION
+// ============================================================================
+
+// @function Classifies volume regime
+// @param metrics VolumeMetrics object
+// @returns String: "High Vol", "Normal Vol", "Low Vol"
+export classifyVolumeRegime(VolumeMetrics metrics) =>
+    metrics.relativeVolume > 1.5 ? "High Vol" :
+    metrics.relativeVolume < 0.7 ? "Low Vol" :
+    "Normal Vol"
+
+// @function Gets volume regime color for visualization
+// @param metrics VolumeMetrics object
+// @returns Color: green for high, gray for normal, red for low
+export getVolumeColor(VolumeMetrics metrics) =>
+    metrics.relativeVolume > 1.5 ? color.new(color.green, 70) :
+    metrics.relativeVolume < 0.7 ? color.new(color.red, 70) :
+    color.new(color.gray, 70)

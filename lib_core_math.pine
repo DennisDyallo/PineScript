@@ -1,0 +1,85 @@
+//@version=5
+// @description Core mathematical utilities with safety features for preventing runtime errors
+// @version 1.0.0
+library("CoreMath")
+
+// ============================================================================
+// SAFE DIVISION & MATH OPERATIONS
+// ============================================================================
+
+// @function Performs safe division with NA protection and default fallback
+// @param numerator The dividend value
+// @param denominator The divisor value
+// @param defaultValue Value to return if division is unsafe (default: 1.0)
+// @returns Division result or defaultValue if denominator is 0/NA
+// @example safeDivide(100, 50, 0) => 2.0
+// @example safeDivide(100, 0, 0) => 0.0 (fallback)
+export safeDivide(float numerator, float denominator, float defaultValue = 1.0) =>
+    result = denominator > 0 and not na(denominator) and not na(numerator) ?
+         numerator / denominator :
+         defaultValue
+    result
+
+// @function Ensures price range is never too small to prevent division issues
+// @param priceRange The calculated price range (high - low)
+// @param close Current close price for scaling
+// @param minPercent Minimum range as percentage of close (default: 0.001 = 0.1%)
+// @returns Safe range value, never below minPercent of close
+// @example safeRange(0.0001, 100, 0.001) => 0.1 (minimum enforced)
+// @example safeRange(5.0, 100, 0.001) => 5.0 (already safe)
+export safeRange(float priceRange, float close, float minPercent = 0.001) =>
+    minAllowed = close * minPercent
+    result = math.max(priceRange, minAllowed)
+    result
+
+// ============================================================================
+// ARRAY OPERATIONS
+// ============================================================================
+
+// @function Safely retrieves value from array with bounds checking
+// @param arr The array to access
+// @param index The index to retrieve
+// @param defaultValue Value to return if index is out of bounds (default: 0.0)
+// @returns Array value at index or defaultValue if index invalid
+// @example safeArrayGet(myArray, 5, -1.0) => value at index 5, or -1.0 if out of bounds
+export safeArrayGet(array<float> arr, int index, float defaultValue = 0.0) =>
+    result = array.size(arr) > index and index >= 0 ?
+         array.get(arr, index) :
+         defaultValue
+    result
+
+// @function Safely retrieves integer value from array with bounds checking
+// @param arr The array to access
+// @param index The index to retrieve
+// @param defaultValue Value to return if index is out of bounds (default: 0)
+// @returns Array value at index or defaultValue if index invalid
+export safeArrayGetInt(array<int> arr, int index, int defaultValue = 0) =>
+    result = array.size(arr) > index and index >= 0 ?
+         array.get(arr, index) :
+         defaultValue
+    result
+
+// ============================================================================
+// VALUE VALIDATION
+// ============================================================================
+
+// @function Checks if a value is valid (not NA and not infinite)
+// @param value The value to check
+// @returns True if value is valid, false if NA or infinite
+export isValidValue(float value) =>
+    not na(value) and not math.isInfinite(value)
+
+// @function Clamps a value between min and max bounds
+// @param value The value to clamp
+// @param minValue Minimum allowed value
+// @param maxValue Maximum allowed value
+// @returns Clamped value within [minValue, maxValue]
+export clamp(float value, float minValue, float maxValue) =>
+    math.max(minValue, math.min(maxValue, value))
+
+// @function Returns value if valid, otherwise returns fallback
+// @param value The value to check
+// @param fallback Value to return if value is invalid
+// @returns value if valid, fallback otherwise
+export valueOrFallback(float value, float fallback) =>
+    isValidValue(value) ? value : fallback
