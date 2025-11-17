@@ -1,0 +1,142 @@
+//@version=5
+// @description Multi-timeframe utilities for calculating higher timeframes programmatically
+// @version 1.0.0
+library("MTFUtils")
+
+// ============================================================================
+// TIMEFRAME CONVERSION LOGIC
+// ============================================================================
+
+// @function Converts current timeframe to next higher timeframe
+// @param baseTF Base timeframe string (e.g., "5", "60", "D", "W")
+// @returns Higher timeframe string suitable for request.security()
+// @example getHigherTimeframe("5") => "15" (5min → 15min)
+// @example getHigherTimeframe("60") => "240" (1H → 4H)
+// @example getHigherTimeframe("D") => "W" (Daily → Weekly)
+export getHigherTimeframe(simple string baseTF = "") =>
+    // Use current timeframe if not specified
+    string currentTF = baseTF == "" ? timeframe.period : baseTF
+
+    // Parse timeframe into numeric value for comparison
+    int tfInMinutes = timeframe.in_seconds(currentTF) / 60
+
+    string result = ""
+
+    // Timeframe escalation logic based on common patterns
+    if tfInMinutes <= 1
+        result := "5"      // 1min → 5min
+    else if tfInMinutes <= 3
+        result := "15"     // 3min → 15min
+    else if tfInMinutes <= 5
+        result := "15"     // 5min → 15min
+    else if tfInMinutes <= 15
+        result := "60"     // 15min → 1H
+    else if tfInMinutes <= 30
+        result := "60"     // 30min → 1H
+    else if tfInMinutes <= 60
+        result := "240"    // 1H → 4H
+    else if tfInMinutes <= 120
+        result := "240"    // 2H → 4H
+    else if tfInMinutes <= 240
+        result := "D"      // 4H → Daily
+    else if tfInMinutes < 1440
+        result := "D"      // Any intraday → Daily
+    else if currentTF == "D"
+        result := "W"      // Daily → Weekly
+    else if currentTF == "W"
+        result := "M"      // Weekly → Monthly
+    else if currentTF == "M"
+        result := "3M"     // Monthly → Quarterly
+    else
+        result := "M"      // Fallback to monthly
+
+    result
+
+// @function Converts current timeframe to second higher timeframe (2 levels up)
+// @param baseTF Base timeframe string (e.g., "5", "60", "D")
+// @returns Second higher timeframe string
+// @example getSecondHigherTimeframe("5") => "60" (5min → 15min → 1H)
+// @example getSecondHigherTimeframe("60") => "D" (1H → 4H → Daily)
+export getSecondHigherTimeframe(simple string baseTF = "") =>
+    string firstHigher = getHigherTimeframe(baseTF)
+    string secondHigher = getHigherTimeframe(firstHigher)
+    secondHigher
+
+// @function Converts current timeframe to third higher timeframe (3 levels up)
+// @param baseTF Base timeframe string (e.g., "5", "60", "D")
+// @returns Third higher timeframe string
+// @example getThirdHigherTimeframe("5") => "240" (5min → 15min → 1H → 4H)
+// @example getThirdHigherTimeframe("60") => "W" (1H → 4H → D → W)
+export getThirdHigherTimeframe(simple string baseTF = "") =>
+    string firstHigher = getHigherTimeframe(baseTF)
+    string secondHigher = getHigherTimeframe(firstHigher)
+    string thirdHigher = getHigherTimeframe(secondHigher)
+    thirdHigher
+
+// ============================================================================
+// TIMEFRAME VALIDATION
+// ============================================================================
+
+// @function Checks if a timeframe string is valid
+// @param tf Timeframe string to validate
+// @returns True if timeframe is valid, false otherwise
+export isValidTimeframe(simple string tf) =>
+    bool isValid = false
+
+    // Check for standard timeframe formats
+    if tf == "1" or tf == "3" or tf == "5" or tf == "15" or tf == "30" or
+       tf == "45" or tf == "60" or tf == "120" or tf == "180" or tf == "240" or
+       tf == "D" or tf == "W" or tf == "M" or tf == "3M" or tf == "6M" or tf == "12M"
+        isValid := true
+
+    isValid
+
+// @function Compares two timeframes and returns true if first is higher than second
+// @param tf1 First timeframe string
+// @param tf2 Second timeframe string
+// @returns True if tf1 > tf2, false otherwise
+export isHigherTimeframe(simple string tf1, simple string tf2) =>
+    int tf1Minutes = timeframe.in_seconds(tf1) / 60
+    int tf2Minutes = timeframe.in_seconds(tf2) / 60
+    tf1Minutes > tf2Minutes
+
+// ============================================================================
+// TIMEFRAME DISPLAY UTILITIES
+// ============================================================================
+
+// @function Converts timeframe string to human-readable format
+// @param tf Timeframe string (e.g., "60", "D", "W")
+// @returns Human-readable timeframe description (e.g., "1 Hour", "Daily", "Weekly")
+export getTimeframeLabel(simple string tf) =>
+    string label = ""
+
+    int tfMinutes = timeframe.in_seconds(tf) / 60
+
+    if tf == "1"
+        label := "1 Minute"
+    else if tf == "3"
+        label := "3 Minutes"
+    else if tf == "5"
+        label := "5 Minutes"
+    else if tf == "15"
+        label := "15 Minutes"
+    else if tf == "30"
+        label := "30 Minutes"
+    else if tf == "60" or tfMinutes == 60
+        label := "1 Hour"
+    else if tf == "120" or tfMinutes == 120
+        label := "2 Hours"
+    else if tf == "240" or tfMinutes == 240
+        label := "4 Hours"
+    else if tf == "D"
+        label := "Daily"
+    else if tf == "W"
+        label := "Weekly"
+    else if tf == "M"
+        label := "Monthly"
+    else if tf == "3M"
+        label := "Quarterly"
+    else
+        label := tf
+
+    label
