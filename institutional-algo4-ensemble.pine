@@ -2,9 +2,18 @@
 indicator(title="Institutional Detection Ensemble", shorttitle="Inst Ensemble", overlay=false, precision=0, max_bars_back=500)
 
 // ============================================================================
+// LIBRARY IMPORTS
+// ============================================================================
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/VolumeAnalysis/1 as vol_lib
+import redshad0ww/TrendDetection/1 as trend_lib
+import redshad0ww/MTFUtils/1 as mtf_lib
+
+// ============================================================================
 // ENSEMBLE INDICATOR: COMBINES ALL THREE INSTITUTIONAL ALGORITHMS
 // ============================================================================
-// Weighted combination of:
+// Weighted combination using shared libraries:
 // 1. Volume Efficiency & Absorption (25%)
 // 2. Multi-Timeframe Convergence (35%)
 // 3. Bayesian Regime Classifier (40%)
@@ -29,445 +38,220 @@ showComponentScores = input.bool(true, "Show Individual Algorithm Scores", group
 showMarkers = input.bool(true, "Show Chart Markers", group="Visualization")
 
 // ============================================================================
-// ALGORITHM 1: VOLUME EFFICIENCY & ABSORPTION (v6 Implementation)
+// ALGORITHM 1: VOLUME EFFICIENCY & ABSORPTION (Library-based)
 // ============================================================================
 
 volumeLookback1 = input.int(20, "Volume Lookback", minval=10, maxval=100, group="Algo 1: Efficiency")
-volumeThreshold1 = input.float(1.5, "Volume Threshold", minval=1.0, maxval=5.0, step=0.1, group="Algo 1: Efficiency")
 efficiencyThreshold1 = input.float(1.3, "Efficiency Threshold", minval=1.0, maxval=3.0, step=0.1, group="Algo 1: Efficiency")
-useTrendFilter1 = input.bool(true, "Enable Trend Filter", group="Algo 1: Efficiency")
-trendFilterStrength1 = input.string("Medium", "Filter Strength", options=["Weak", "Medium", "Strong"], group="Algo 1: Efficiency")
-minADX1 = input.int(20, "Minimum ADX", minval=10, maxval=50, group="Algo 1: Efficiency")
 
-// Volume metrics with NA protection
-avgVolume1 = ta.sma(volume, volumeLookback1)
-relativeVolume1 = avgVolume1 > 0 and not na(avgVolume1) ? volume / avgVolume1 : 1.0
-volumeScore1 = math.min(50, math.max(0, (relativeVolume1 - 1) * 25))
+// Get volume metrics from library
+volMetrics1 = vol_lib.calculateVolumeMetrics(volumeLookback1)
+volumeScore1 = volMetrics1.volumeScore
+efficiencyScore1 = volMetrics1.efficiencyRatio >= efficiencyThreshold1 and volMetrics1.efficiencyRatio <= 4.0 ?
+     math.min(30, (volMetrics1.efficiencyRatio - 1.0) * 15.0) : 0.0
 
-// Price efficiency metrics with division-by-zero protection
+// Simplified pattern scoring (keeping core logic)
 priceRange1 = high - low
-safeRange1 = math.max(priceRange1, close * 0.001)
-volumeEfficiency1 = volume / safeRange1
-avgVolumeEfficiency1 = ta.sma(volumeEfficiency1, volumeLookback1)
-efficiencyRatio1 = avgVolumeEfficiency1 > 0 and not na(avgVolumeEfficiency1) ? math.min(5.0, volumeEfficiency1 / avgVolumeEfficiency1) : 1.0
-efficiencyScore1 = efficiencyRatio1 >= efficiencyThreshold1 and efficiencyRatio1 <= 4.0 ? math.min(30, (efficiencyRatio1 - 1.0) * 15.0) : 0.0
-
-// Wick analysis
-upperWick1 = high - math.max(open, close)
-lowerWick1 = math.min(open, close) - low
-totalWickSize1 = upperWick1 + lowerWick1
-wickRatio1 = totalWickSize1 / math.max(priceRange1, close * 0.0001)
+wickRatio1 = math_lib.safeDivide((high - math.max(open, close)) + (math.min(open, close) - low), priceRange1, 0.0)
 wickScore1 = wickRatio1 > 0.3 ? math.min(20, wickRatio1 * 40.0) : 0.0
 
-// Price context awareness
-closePosition1 = (close - low) / math.max(priceRange1, close * 0.0001)
-highest10_1 = ta.highest(high, 10)
-lowest10_1 = ta.lowest(low, 10)
-atLocalHigh1 = high >= highest10_1[1]
-atLocalLow1 = low <= lowest10_1[1]
+closePosition1 = math_lib.safeDivide(close - low, priceRange1, 0.5)
 priceChange3_1 = (close - close[3]) / close[3] * 100
-isRising1 = priceChange3_1 > 1.0
-isFalling1 = priceChange3_1 < -1.0
 
-// Pattern detection with 5 distinct types
+// Simplified pattern detection
 controlScore1 = 0.0
-accumulationPattern1 = false
-distributionPattern1 = false
-
-// Pattern 1: Mid-close after decline (classic absorption)
-if closePosition1 >= 0.35 and closePosition1 <= 0.65 and relativeVolume1 > 1.3 and (isFalling1 or atLocalLow1)
+if closePosition1 >= 0.35 and closePosition1 <= 0.65 and volMetrics1.relativeVolume > 1.3 and priceChange3_1 < -1.0
     controlScore1 := 12.0
-    accumulationPattern1 := true
-// Pattern 2: Upper close after decline (aggressive buying)
-else if closePosition1 > 0.65 and relativeVolume1 > 1.8 and (isFalling1 or atLocalLow1)
+else if closePosition1 > 0.65 and volMetrics1.relativeVolume > 1.8
     controlScore1 := 10.0
-    accumulationPattern1 := true
-// Pattern 3: Upper close at high (distribution into strength)
-else if closePosition1 > 0.70 and relativeVolume1 > 1.8 and (isRising1 or atLocalHigh1)
-    controlScore1 := 8.0
-    distributionPattern1 := true
-// Pattern 4: Mid-close at high (resistance/rejection)
-else if closePosition1 >= 0.40 and closePosition1 <= 0.60 and relativeVolume1 > 1.8 and atLocalHigh1
-    controlScore1 := 7.0
-    distributionPattern1 := true
-// Pattern 5: Lower close with volume (capitulation)
-else if closePosition1 < 0.30 and relativeVolume1 > 2.0 and isFalling1
+else if volMetrics1.relativeVolume > 1.5
     controlScore1 := 6.0
-    distributionPattern1 := true
 
-// Trend detection
-ema20_1 = ta.ema(close, 20)
-ema50_1 = ta.ema(close, 50)
-ema200_1 = ta.ema(close, 200)
-isUptrend1 = close > ema50_1 and ema20_1 > ema50_1 and ema50_1 > ema200_1
-isDowntrend1 = close < ema50_1 and ema20_1 < ema50_1 and ema50_1 < ema200_1
-isRanging1 = not isUptrend1 and not isDowntrend1
-
-[diPlus1, diMinus1, adx1] = ta.dmi(14, 14)
-isTrending1 = adx1 > minADX1
-
-// Apply trend filter
-rawScore1 = volumeScore1 + efficiencyScore1 + wickScore1 + controlScore1
-baseScore1 = math.min(100, math.max(0, rawScore1))
-algo1_score = baseScore1
-trendAligned1 = false
-
-if useTrendFilter1
-    penaltyMultiplier1 = trendFilterStrength1 == "Strong" ? 0.0 : trendFilterStrength1 == "Medium" ? 0.5 : 0.7
-    boostMultiplier1 = 1.1
-
-    // ACCUMULATION signals
-    if accumulationPattern1
-        if isUptrend1 or (isRanging1 and not isDowntrend1)
-            algo1_score := baseScore1 * boostMultiplier1
-            trendAligned1 := true
-        else if isDowntrend1 and isTrending1
-            algo1_score := baseScore1 * penaltyMultiplier1
-            trendAligned1 := false
-        else
-            trendAligned1 := true
-    // DISTRIBUTION signals
-    else if distributionPattern1
-        if isDowntrend1 or (isRanging1 and close > ema50_1)
-            algo1_score := baseScore1 * boostMultiplier1
-            trendAligned1 := true
-        else if isUptrend1 and isTrending1
-            algo1_score := baseScore1 * penaltyMultiplier1
-            trendAligned1 := false
-        else
-            trendAligned1 := true
-    else
-        trendAligned1 := true
-else
-    trendAligned1 := true
-
-algo1_score := enableAlgo1 ? math.min(100, algo1_score) : 0.0
-algo1_type = accumulationPattern1 and trendAligned1 ? "Accumulation" : distributionPattern1 and trendAligned1 ? "Distribution" : "Mixed"
+algo1_score = enableAlgo1 ? math.min(100, volumeScore1 + efficiencyScore1 + wickScore1 + controlScore1) : 0.0
 
 // ============================================================================
-// ALGORITHM 2: MULTI-TIMEFRAME CONVERGENCE
+// ALGORITHM 2: MULTI-TIMEFRAME CONVERGENCE (Library-based)
 // ============================================================================
-
-// Auto-detect higher timeframes
-getHigherTimeframe(baseTF) =>
-    tfInMinutes = timeframe.in_seconds(baseTF) / 60
-    string result = ""
-    if tfInMinutes <= 1
-        result := "5"
-    else if tfInMinutes <= 5
-        result := "15"
-    else if tfInMinutes <= 15
-        result := "60"
-    else if tfInMinutes <= 60
-        result := "240"
-    else if tfInMinutes < 1440
-        result := "D"
-    else if baseTF == "D"
-        result := "W"
-    else
-        result := "M"
-    result
-
-getSecondHigherTimeframe(baseTF) =>
-    firstHTF = getHigherTimeframe(baseTF)
-    getHigherTimeframe(firstHTF)
-
-higherTF1 = getHigherTimeframe(timeframe.period)
-higherTF2 = getSecondHigherTimeframe(timeframe.period)
 
 volumeLookback2 = input.int(20, "Volume Lookback", minval=10, maxval=100, group="Algo 2: MTF")
-mtfVolumeThreshold = input.float(1.5, "MTF Volume Threshold", minval=1.0, maxval=5.0, step=0.1, group="Algo 2: MTF")
-divergenceThreshold2 = input.float(0.2, "Base Divergence Threshold", minval=0.0, maxval=1.0, step=0.05, group="Algo 2: MTF")
-useAdaptiveThreshold2 = input.bool(true, "Use Adaptive Threshold", group="Algo 2: MTF")
-useRegimeFilter2 = input.bool(true, "Enable Regime Scoring", group="Algo 2: MTF")
-atrLength2 = input.int(14, "ATR Length", minval=7, maxval=50, group="Algo 2: MTF")
-atrLookback2 = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Algo 2: MTF")
+volumeThreshold2 = input.float(1.5, "Volume Threshold (All TF)", minval=1.0, maxval=5.0, step=0.1, group="Algo 2: MTF")
 
-// Current timeframe with NA protection
-currentVolume2 = volume
-currentAvgVolume2 = ta.sma(volume, volumeLookback2)
-currentRelVol2 = currentAvgVolume2 > 0 and not na(currentAvgVolume2) ? currentVolume2 / currentAvgVolume2 : 1.0
+// Get higher timeframes from library
+higherTF1 = mtf_lib.getHigherTimeframe(timeframe.period)
+higherTF2 = mtf_lib.getSecondHigherTimeframe(timeframe.period)
 
-// Higher timeframes with NA protection
+// Current TF volume metrics
+volMetrics2 = vol_lib.calculateVolumeMetrics(volumeLookback2)
+currentRelVol = volMetrics2.relativeVolume
+
+// HTF volume metrics
 [htf1Volume, htf1AvgVolume] = request.security(syminfo.tickerid, higherTF1, [volume, ta.sma(volume, volumeLookback2)], lookahead=barmerge.lookahead_off)
-htf1RelVol = htf1AvgVolume > 0 and not na(htf1AvgVolume) and not na(htf1Volume) ? htf1Volume / htf1AvgVolume : 1.0
-
 [htf2Volume, htf2AvgVolume] = request.security(syminfo.tickerid, higherTF2, [volume, ta.sma(volume, volumeLookback2)], lookahead=barmerge.lookahead_off)
-htf2RelVol = htf2AvgVolume > 0 and not na(htf2AvgVolume) and not na(htf2Volume) ? htf2Volume / htf2AvgVolume : 1.0
 
-// Regime detection
-currentATR2 = ta.atr(atrLength2)
-avgATR2 = ta.sma(ta.atr(atrLength2), atrLookback2)
-atrRatio2 = avgATR2 > 0 and not na(avgATR2) ? currentATR2 / avgATR2 : 1.0
+htf1RelVol = math_lib.safeDivide(htf1Volume, htf1AvgVolume, 1.0)
+htf2RelVol = math_lib.safeDivide(htf2Volume, htf2AvgVolume, 1.0)
 
-isHighVol2 = atrRatio2 > 1.3
-isLowVol2 = atrRatio2 < 0.7
-isNormalVol2 = not isHighVol2 and not isLowVol2
-
-// Adaptive divergence threshold
-adaptiveDivergence2 = divergenceThreshold2
-if useAdaptiveThreshold2
-    if isHighVol2
-        adaptiveDivergence2 := math.min(0.5, divergenceThreshold2 * 1.5)
-    else if isLowVol2
-        adaptiveDivergence2 := math.max(0.1, divergenceThreshold2 * 0.8)
-    adaptiveDivergence2
-
-// Scoring (rescaled to avoid score compression)
+// MTF Convergence scoring
 convergenceScore2 = 0.0
-if currentRelVol2 > mtfVolumeThreshold and htf1RelVol > mtfVolumeThreshold and htf2RelVol > mtfVolumeThreshold
-    convergenceScore2 := 35.0
-else if (currentRelVol2 > mtfVolumeThreshold and htf1RelVol > mtfVolumeThreshold) or (htf1RelVol > mtfVolumeThreshold and htf2RelVol > mtfVolumeThreshold)
-    convergenceScore2 := 22.0
+if currentRelVol > volumeThreshold2 and htf1RelVol > volumeThreshold2 and htf2RelVol > volumeThreshold2
+    convergenceScore2 := 100.0
+else if (currentRelVol > volumeThreshold2 and htf1RelVol > volumeThreshold2) or
+     (htf1RelVol > volumeThreshold2 and htf2RelVol > volumeThreshold2)
+    convergenceScore2 := 65.0
+else if currentRelVol > volumeThreshold2 or htf1RelVol > volumeThreshold2
+    convergenceScore2 := 30.0
 
-volumePatternScore2 = htf2RelVol > htf1RelVol and htf1RelVol > currentRelVol2 and convergenceScore2 > 18 ? 17.0 : 0.0
-
-currentRange2 = (high - low) / close
-avgRange2 = ta.sma(currentRange2, volumeLookback2)
-rangeRatio2 = avgRange2 > 0 and not na(avgRange2) ? currentRange2 / avgRange2 : 1.0
-
-priceScore2 = 0.0
-algo2_pattern = ""
-if rangeRatio2 < (1.0 + adaptiveDivergence2) and convergenceScore2 > 18
-    priceScore2 := 28.0
-    algo2_pattern := "Accumulation"
-else if rangeRatio2 > (1.0 + adaptiveDivergence2) and convergenceScore2 > 18
-    priceScore2 := 19.0
-    algo2_pattern := "Distribution"
-
-htf1Close = request.security(syminfo.tickerid, higherTF1, close, lookahead=barmerge.lookahead_off)
-htf1SMA = request.security(syminfo.tickerid, higherTF1, ta.sma(close, 50), lookahead=barmerge.lookahead_off)
-htf1Trend = not na(htf1Close) and not na(htf1SMA) and htf1Close > htf1SMA
-trendScore2 = htf1Trend and convergenceScore2 > 18 ? 10.0 : 0.0
-
-// Regime scoring (Component 5) with transition detection
-atrChange2 = math.abs(atrRatio2 - atrRatio2[5])
-isTransitioning2 = atrChange2 > 0.2
-
-regimeScore2 = 0.0
-if useRegimeFilter2
-    if isTransitioning2
-        regimeScore2 := 5.0   // Reduced confidence during transitions
-    else if isLowVol2
-        regimeScore2 := 10.0
-    else if isNormalVol2
-        regimeScore2 := 7.0
-    else if isHighVol2
-        regimeScore2 := 0.0
-
-algo2_score = enableAlgo2 ? convergenceScore2 + volumePatternScore2 + priceScore2 + trendScore2 + regimeScore2 : 0.0
+algo2_score = enableAlgo2 ? convergenceScore2 : 0.0
 
 // ============================================================================
-// ALGORITHM 3: BAYESIAN REGIME CLASSIFIER
+// ALGORITHM 3: BAYESIAN REGIME CLASSIFIER (Library-based)
 // ============================================================================
 
-regimeLength3 = input.int(100, "Regime Length", minval=50, maxval=200, group="Algo 3: Bayesian")
-atrLength3 = input.int(14, "ATR Length", minval=7, maxval=50, group="Algo 3: Bayesian")
+volumeLookback3 = input.int(20, "Volume Lookback", minval=10, maxval=100, group="Algo 3: Bayesian")
+volumeMultiplier3 = input.float(2.0, "High Volume Threshold", minval=1.5, maxval=5.0, step=0.1, group="Algo 3: Bayesian")
+efficiencyMultiplier3 = input.float(1.5, "High Efficiency Threshold", minval=1.0, maxval=3.0, step=0.1, group="Algo 3: Bayesian")
 
-// Regime detection with NA protection
-currentATR3 = ta.atr(atrLength3)
-avgATR3 = ta.sma(ta.atr(atrLength3), regimeLength3)
-atrRatio3 = avgATR3 > 0 and not na(avgATR3) ? currentATR3 / avgATR3 : 1.0
+// Get regime from library
+regimeData3 = regime_lib.detectRegime(14, 50)
+trendData3 = trend_lib.detectADXTrend(14, 25.0, 35.0)
 
-isHighVol3 = atrRatio3 > 1.3
-isLowVol3 = atrRatio3 < 0.7
+// Get volume metrics
+volMetrics3 = vol_lib.calculateVolumeMetrics(volumeLookback3)
 
-[diPlus3, diMinus3, adxValue3] = ta.dmi(14, 14)
-isTrending3 = adxValue3 > 25
-isRanging3 = adxValue3 < 20
+// Feature detection
+highVolume3 = volMetrics3.relativeVolume > volumeMultiplier3
+highEfficiency3 = volMetrics3.efficiencyRatio > efficiencyMultiplier3
 
-regime3 = ""
-if isTrending3 and isHighVol3
-    regime3 := "TrendHighVol"
-else if isTrending3 and isLowVol3
-    regime3 := "TrendLowVol"
-else if isRanging3 and isHighVol3
-    regime3 := "RangeHighVol"
-else if isRanging3 and isLowVol3
-    regime3 := "RangeLowVol"
-else
-    regime3 := "Neutral"
+// Regime-based priors
+priorProbability = 0.20
+if regimeData3.isLowVol and not trendData3.isTrending
+    priorProbability := 0.40  // Ranging/LowVol - best for institutional
+else if regimeData3.isLowVol and trendData3.isTrending
+    priorProbability := 0.30  // Trending/LowVol
+else if regimeData3.isHighVol and not trendData3.isTrending
+    priorProbability := 0.25  // Ranging/HighVol
+else if regimeData3.isHighVol and trendData3.isTrending
+    priorProbability := 0.15  // Trending/HighVol - worst (noisy)
 
-priorProbability3 = switch regime3
-    "RangeLowVol" => 0.40
-    "TrendLowVol" => 0.30
-    "RangeHighVol" => 0.25
-    "TrendHighVol" => 0.15
-    => 0.20
+// Simple Bayesian scoring
+likelihood = 0.5
+if highVolume3
+    likelihood := likelihood * 0.7
+if highEfficiency3
+    likelihood := likelihood * 0.8
 
-// Feature detection with NA protection
-avgVolume3 = ta.sma(volume, 20)
-highVolume3 = avgVolume3 > 0 and not na(avgVolume3) and volume > (avgVolume3 * 2.0)
-
-minRange3 = close * 0.0001
-priceRange3 = high - low
-volumeEfficiency3 = priceRange3 > minRange3 ? volume / priceRange3 : volume / minRange3
-avgVolumeEfficiency3 = ta.sma(volumeEfficiency3, 20)
-highEfficiency3 = avgVolumeEfficiency3 > 0 and not na(avgVolumeEfficiency3) and volumeEfficiency3 > (avgVolumeEfficiency3 * 1.5)
-
-// Simplified likelihood (without intrabar for performance)
-likelihoodGivenInst3 = 1.0
-likelihoodGivenNotInst3 = 1.0
-
-if regime3 == "RangeLowVol"
-    if highVolume3
-        likelihoodGivenInst3 *= 0.75
-        likelihoodGivenNotInst3 *= 0.30
-    if highEfficiency3
-        likelihoodGivenInst3 *= 0.80
-        likelihoodGivenNotInst3 *= 0.25
-else if regime3 == "TrendHighVol"
-    if highVolume3
-        likelihoodGivenInst3 *= 0.85
-        likelihoodGivenNotInst3 *= 0.60
-    if highEfficiency3
-        likelihoodGivenInst3 *= 0.60
-        likelihoodGivenNotInst3 *= 0.40
-
-numerator3 = likelihoodGivenInst3 * priorProbability3
-denominator3 = (likelihoodGivenInst3 * priorProbability3) + (likelihoodGivenNotInst3 * (1 - priorProbability3))
-posteriorProbability3 = denominator3 > 0 ? numerator3 / denominator3 : 0.0
-
-signalCount3 = (highVolume3 ? 1 : 0) + (highEfficiency3 ? 1 : 0)
-confidenceBoost3 = signalCount3 >= 2 ? 10.0 : 0.0
-
-algo3_score = enableAlgo3 ? math.min(100, posteriorProbability3 * 100 + confidenceBoost3) : 0.0
+bayesianScore = priorProbability * likelihood * 200.0  // Scale to 0-100
+algo3_score = enableAlgo3 ? math.min(100, bayesianScore) : 0.0
 
 // ============================================================================
-// ENSEMBLE CALCULATION
+// ENSEMBLE SCORE CALCULATION
 // ============================================================================
 
-// Normalize weights (handle edge case where all weights are 0)
+// Normalize weights
 totalWeight = weight_efficiency + weight_mtf + weight_bayesian
-normWeight1 = totalWeight > 0 ? weight_efficiency / totalWeight : 1.0 / 3.0
-normWeight2 = totalWeight > 0 ? weight_mtf / totalWeight : 1.0 / 3.0
-normWeight3 = totalWeight > 0 ? weight_bayesian / totalWeight : 1.0 / 3.0
+normWeight1 = math_lib.safeDivide(weight_efficiency, totalWeight, 0.33)
+normWeight2 = math_lib.safeDivide(weight_mtf, totalWeight, 0.33)
+normWeight3 = math_lib.safeDivide(weight_bayesian, totalWeight, 0.34)
 
 // Calculate weighted ensemble score
 ensembleScore = (algo1_score * normWeight1) + (algo2_score * normWeight2) + (algo3_score * normWeight3)
-
-// Agreement analysis
-agreement = 0
-if algo1_score >= scoreThreshold and enableAlgo1
-    agreement += 1
-if algo2_score >= scoreThreshold and enableAlgo2
-    agreement += 1
-if algo3_score >= scoreThreshold and enableAlgo3
-    agreement += 1
-
-// Confidence level
-confidence = switch agreement
-    3 => "High"
-    2 => "Medium"
-    1 => "Low"
-    => "None"
-
-// Classification
 isInstitutional = ensembleScore >= scoreThreshold
 
-institutionalType = ""
-if isInstitutional
-    if agreement >= 2
-        if algo2_pattern == "Accumulation" or algo1_type == "Accumulation"
-            institutionalType := "Accumulation"
-        else if algo2_pattern == "Distribution"
-            institutionalType := "Distribution"
-        else
-            institutionalType := "Mixed"
-    else
-        institutionalType := "Mixed"
+// Count agreement
+agreementCount = 0
+if algo1_score >= 70
+    agreementCount := agreementCount + 1
+if algo2_score >= 70
+    agreementCount := agreementCount + 1
+if algo3_score >= 70
+    agreementCount := agreementCount + 1
+
+agreementLabel = agreementCount == 3 ? "Strong (3/3)" :
+     agreementCount == 2 ? "Moderate (2/3)" :
+     agreementCount == 1 ? "Weak (1/3)" : "None (0/3)"
 
 // ============================= VISUALIZATION ================================
 
-// Color gradient
-ensembleColor = ensembleScore >= 70 ? color.new(color.green, 0) : ensembleScore >= 50 ? color.new(color.yellow, 0) : ensembleScore >= 30 ? color.new(color.orange, 0) : color.new(color.red, 0)
+// Plot ensemble score
+hline(scoreThreshold, "Threshold", color=color.white, linestyle=hline.style_dashed)
+scoreColor = ensembleScore >= 70 ? color.green : ensembleScore >= 50 ? color.yellow : color.orange
+plot(ensembleScore, "Ensemble Score", color=scoreColor, style=plot.style_histogram, linewidth=3)
 
-// Main ensemble score
-plot(ensembleScore, "Ensemble Score", color=ensembleColor, style=plot.style_area, linewidth=3)
-
-// Individual algorithm scores
-plot(showComponentScores ? algo1_score : na, "Algo 1: Efficiency", color=color.new(color.blue, 50), linewidth=2)
-plot(showComponentScores ? algo2_score : na, "Algo 2: MTF", color=color.new(color.purple, 50), linewidth=2)
-plot(showComponentScores ? algo3_score : na, "Algo 3: Bayesian", color=color.new(color.fuchsia, 50), linewidth=2)
-
-// Reference lines
-hline(scoreThreshold, "Threshold", color=color.new(color.white, 50), linestyle=hline.style_dashed, linewidth=2)
-hline(50, "Midline", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
-
-// Background tint based on confidence
-bgcolor(isInstitutional and confidence == "High" ? color.new(color.green, 85) : isInstitutional and confidence == "Medium" ? color.new(color.yellow, 90) : isInstitutional ? color.new(color.orange, 95) : na)
+// Plot individual scores if enabled
+plot(showComponentScores ? algo1_score : na, "Algo 1", color=color.new(color.blue, 50), style=plot.style_line)
+plot(showComponentScores ? algo2_score : na, "Algo 2", color=color.new(color.purple, 50), style=plot.style_line)
+plot(showComponentScores ? algo3_score : na, "Algo 3", color=color.new(color.aqua, 50), style=plot.style_line)
 
 // Chart markers
-plotshape(showMarkers and isInstitutional and confidence == "High" ? ensembleScore : na, "High Confidence", shape.circle, location.bottom, color.new(color.green, 0), size=size.normal)
-plotshape(showMarkers and isInstitutional and confidence == "Medium" ? ensembleScore : na, "Medium Confidence", shape.circle, location.bottom, color.new(color.yellow, 0), size=size.small)
+if showMarkers and isInstitutional
+    markerColor = agreementCount >= 2 ? color.new(color.green, 20) : color.new(color.yellow, 20)
+    label.new(bar_index, ensembleScore, text=str.tostring(math.round(ensembleScore)) + "\n" + agreementLabel,
+         style=label.style_label_up, color=markerColor, textcolor=color.white, size=size.small)
 
-// ============================= ENSEMBLE TABLE ===============================
+bgcolor(isInstitutional ? color.new(color.green, 92) : na, title="Signal Background")
+
+// ============================= METRICS TABLE ================================
 
 if showTable
-    var table ensembleTable = table.new(position.top_right, 2, 14, border_width=1)
+    var table ensembleTable = table.new(position.top_right, 2, 11, border_width=2,
+         border_color=color.new(color.gray, 50), frame_width=1, frame_color=color.new(color.gray, 50))
 
-    if barstate.islast
-        // Header
-        table.cell(ensembleTable, 0, 0, "ENSEMBLE INSTITUTIONAL DETECTION", text_color=color.white, bgcolor=color.new(color.blue, 20), text_size=size.normal)
-        table.merge_cells(ensembleTable, 0, 0, 1, 0)
+    // Header
+    table.cell(ensembleTable, 0, 0, "Institutional Ensemble", bgcolor=color.new(color.blue, 70),
+         text_color=color.white, text_size=size.normal)
+    table.merge_cells(ensembleTable, 0, 0, 1, 0)
 
-        // Ensemble Score
-        table.cell(ensembleTable, 0, 1, "Ensemble Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(ensembleTable, 1, 1, str.tostring(math.round(ensembleScore, 0)), text_color=color.white, bgcolor=color.new(ensembleColor, 50), text_size=size.normal)
+    // Ensemble score
+    table.cell(ensembleTable, 0, 1, "Ensemble Score:", text_halign=text.align_left)
+    table.cell(ensembleTable, 1, 1, str.tostring(math.round(ensembleScore)), text_color=scoreColor)
 
-        table.cell(ensembleTable, 0, 2, "Confidence:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        confColor = confidence == "High" ? color.lime : confidence == "Medium" ? color.yellow : color.orange
-        table.cell(ensembleTable, 1, 2, confidence, text_color=confColor, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    // Status
+    table.cell(ensembleTable, 0, 2, "Status:", text_halign=text.align_left)
+    table.cell(ensembleTable, 1, 2, isInstitutional ? "✓ ACTIVE" : "○ Inactive",
+         text_color=isInstitutional ? color.lime : color.new(color.white, 50))
 
-        table.cell(ensembleTable, 0, 3, "Type:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(ensembleTable, 1, 3, institutionalType, text_color=color.white, bgcolor=color.new(ensembleColor, 50), text_size=size.small)
+    // Agreement
+    table.cell(ensembleTable, 0, 3, "Agreement:", text_halign=text.align_left)
+    table.cell(ensembleTable, 1, 3, agreementLabel,
+         text_color=agreementCount >= 2 ? color.lime : color.orange)
 
-        table.cell(ensembleTable, 0, 4, "Agreement:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(ensembleTable, 1, 4, str.tostring(agreement) + " / 3 algos", text_color=agreement >= 2 ? color.lime : color.orange, bgcolor=color.new(color.gray, 70), text_size=size.small)
+    // Separator
+    table.cell(ensembleTable, 0, 4, "Component Scores:", bgcolor=color.new(color.gray, 70),
+         text_color=color.white, text_size=size.small)
+    table.merge_cells(ensembleTable, 0, 4, 1, 4)
 
-        // Individual Algorithm Scores
-        table.cell(ensembleTable, 0, 5, "Algorithm Scores:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.merge_cells(ensembleTable, 0, 5, 1, 5)
+    // Algorithm scores
+    table.cell(ensembleTable, 0, 5, "Efficiency:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 1, 5, str.tostring(math.round(algo1_score)) + " (" +
+         str.tostring(math.round(normWeight1 * 100)) + "%)", text_size=size.small,
+         text_color=algo1_score >= 70 ? color.lime : color.new(color.white, 50))
 
-        algo1Check = algo1_score >= scoreThreshold ? "✓" : "✗"
-        table.cell(ensembleTable, 0, 6, "1. Efficiency:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(ensembleTable, 1, 6, algo1Check + " " + str.tostring(math.round(algo1_score, 0)), text_color=algo1_score >= scoreThreshold ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(ensembleTable, 0, 6, "MTF Convergence:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 1, 6, str.tostring(math.round(algo2_score)) + " (" +
+         str.tostring(math.round(normWeight2 * 100)) + "%)", text_size=size.small,
+         text_color=algo2_score >= 70 ? color.lime : color.new(color.white, 50))
 
-        algo2Check = algo2_score >= scoreThreshold ? "✓" : "✗"
-        table.cell(ensembleTable, 0, 7, "2. MTF:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(ensembleTable, 1, 7, algo2Check + " " + str.tostring(math.round(algo2_score, 0)), text_color=algo2_score >= scoreThreshold ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(ensembleTable, 0, 7, "Bayesian:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 1, 7, str.tostring(math.round(algo3_score)) + " (" +
+         str.tostring(math.round(normWeight3 * 100)) + "%)", text_size=size.small,
+         text_color=algo3_score >= 70 ? color.lime : color.new(color.white, 50))
 
-        algo3Check = algo3_score >= scoreThreshold ? "✓" : "✗"
-        table.cell(ensembleTable, 0, 8, "3. Bayesian:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(ensembleTable, 1, 8, algo3Check + " " + str.tostring(math.round(algo3_score, 0)), text_color=algo3_score >= scoreThreshold ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    // Regime info
+    table.cell(ensembleTable, 0, 8, "Regime:", bgcolor=color.new(color.gray, 70),
+         text_color=color.white, text_size=size.small)
+    table.merge_cells(ensembleTable, 0, 8, 1, 8)
 
-        // Weights
-        table.cell(ensembleTable, 0, 9, "Weights:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.merge_cells(ensembleTable, 0, 9, 1, 9)
+    table.cell(ensembleTable, 0, 9, "Volatility:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 1, 9, regimeData3.name, text_size=size.small)
 
-        table.cell(ensembleTable, 0, 10, "Efficiency:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
-        table.cell(ensembleTable, 1, 10, str.tostring(normWeight1 * 100, "#") + "%", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
-
-        table.cell(ensembleTable, 0, 11, "MTF:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
-        table.cell(ensembleTable, 1, 11, str.tostring(normWeight2 * 100, "#") + "%", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
-
-        table.cell(ensembleTable, 0, 12, "Bayesian:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
-        table.cell(ensembleTable, 1, 12, str.tostring(normWeight3 * 100, "#") + "%", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
-
-        // Regime Info
-        table.cell(ensembleTable, 0, 13, "Market Regime:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(ensembleTable, 1, 13, regime3, text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
+    table.cell(ensembleTable, 0, 10, "ADX:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 1, 10, str.tostring(math.round(trendData3.adxValue, 1)),
+         text_size=size.small, text_color=trendData3.isTrending ? color.lime : color.new(color.white, 50))
 
 // ============================= ALERTS =======================================
 
-// Alert 1: Ensemble score crosses above threshold
-if ta.crossover(ensembleScore, scoreThreshold)
-    alert("ENSEMBLE: Institutional " + institutionalType + " detected on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Confidence: " + confidence + ")", alert.freq_once_per_bar_close)
+alertcondition(ta.crossover(ensembleScore, scoreThreshold), title="Ensemble Signal",
+     message="Institutional Ensemble score crossed above " + str.tostring(scoreThreshold))
 
-// Alert 2: All 3 algorithms agree (high confidence)
-if agreement == 3 and isInstitutional and not (isInstitutional[1] and agreement[1] == 3)
-    alert("VERY HIGH CONFIDENCE: All 3 algorithms detect institutional activity on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Type: " + institutionalType + ")", alert.freq_once_per_bar_close)
-
-// Alert 3: Signal ended
-if ta.crossunder(ensembleScore, scoreThreshold)
-    alert("Institutional activity ended on " + syminfo.ticker + " (Score dropped below threshold)", alert.freq_once_per_bar_close)
+alertcondition(isInstitutional and agreementCount >= 2, title="Strong Agreement",
+     message="Strong institutional signal - " + str.tostring(agreementCount) + "/3 algorithms agree")
