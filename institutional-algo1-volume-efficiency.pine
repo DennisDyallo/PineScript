@@ -1,4 +1,4 @@
-//@version=6
+//@version=5
 indicator('Institutional Volume Efficiency Detector [Trend Filtered]', shorttitle = 'IVED-TF', overlay = false, format = format.price, precision = 0, max_labels_count = 500)
 
 // ============================================================================
