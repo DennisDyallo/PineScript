@@ -14,6 +14,7 @@ indicator("S/R Algo 1: Volume Profile Detection", shorttitle="S/R Volume Profile
 // Volume Profile Settings
 vpLookback = input.int(200, "Volume Profile Lookback", minval=50, maxval=500, group="Volume Profile", tooltip="Bars to analyze for volume distribution")
 priceBins = input.int(40, "Price Bins", minval=20, maxval=60, group="Volume Profile", tooltip="Number of price levels to divide range into (fewer = faster)")
+useAdaptiveBins = input.bool(true, "Use Adaptive Bin Sizing", group="Volume Profile", tooltip="Auto-adjust bins based on ATR. Disable for fixed bins.")
 
 // Level Detection
 showPOC = input.bool(true, "Show POC (Point of Control)", group="Key Levels", tooltip="Highest volume price level")
@@ -54,6 +55,38 @@ isNormalVol = not isHighVol and not isLowVol
 regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
 regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85
 
+// ============================= ADAPTIVE BIN SIZING ==========================
+// PHASE 2 IMPROVEMENT: Calculate optimal bin count based on ATR
+// Rationale: ATR-based discretization matches asset's intrinsic volatility
+// Low vol assets → smaller bins (higher resolution)
+// High vol assets → larger bins (less noise)
+
+// Calculate base bin count
+baseBins = priceBins  // User's manual setting (40 default)
+
+// Calculate adaptive bin count
+atr14 = ta.atr(14)
+avgATR = ta.sma(atr14, 50)  // Smoothed ATR over 50 bars
+
+// Optimal bin size = 2× ATR (statistically meaningful price level)
+// Number of bins = price range / (2 × ATR)
+adaptiveBinCount = baseBins
+if useAdaptiveBins and avgATR > 0 and not na(avgATR)
+    // Get price range first (needed for calculation)
+    tempHighest = ta.highest(high, vpLookback)
+    tempLowest = ta.lowest(low, vpLookback)
+    priceRangeTemp = tempHighest - tempLowest
+
+    if priceRangeTemp > 0
+        optimalBinSize = avgATR * 2
+        adaptiveBinCount := math.round(priceRangeTemp / optimalBinSize)
+
+        // Constrain to reasonable range (safety limits)
+        adaptiveBinCount := math.max(20, math.min(60, adaptiveBinCount))
+
+// Use adaptive count for profile construction
+priceBinsActual = adaptiveBinCount
+
 // ============================= BUILD VOLUME PROFILE =========================
 
 // Get price range for lookback period
@@ -68,11 +101,11 @@ if priceRange == 0 or na(priceRange)
     // Create minimal bin size to avoid division by zero
     binSize := lowestPrice * 0.001  // 0.1% of price as arbitrary bin
 else
-    binSize := priceRange / priceBins
+    binSize := priceRange / priceBinsActual  // Use adaptive count
 
-// Initialize volume-at-price array
-var array<float> volumeAtPrice = array.new_float(priceBins, 0.0)
-var array<float> binPrices = array.new_float(priceBins, 0.0)
+// Initialize volume-at-price array (dynamic sizing for adaptive bins)
+var array<float> volumeAtPrice = array.new_float()
+var array<float> binPrices = array.new_float()
 
 // FLAW FIX #1: Recalculate on confirmed bars for historical backtesting support
 // Changed from barstate.islast to barstate.isconfirmed for historical visibility
@@ -81,7 +114,8 @@ if barstate.isconfirmed or barstate.islast
     array.clear(volumeAtPrice)
     array.clear(binPrices)
 
-    for i = 0 to priceBins - 1
+    // Initialize with adaptive bin count
+    for i = 0 to priceBinsActual - 1
         array.push(volumeAtPrice, 0.0)
         array.push(binPrices, lowestPrice + (i * binSize) + (binSize / 2))
 
@@ -104,11 +138,11 @@ if barstate.isconfirmed or barstate.islast
         lowBin = math.floor((barLow - lowestPrice) / binSize)
         closeBin = math.floor((barClose - lowestPrice) / binSize)
 
-        // Bounds check
-        openBin := math.max(0, math.min(priceBins - 1, openBin))
-        highBin := math.max(0, math.min(priceBins - 1, highBin))
-        lowBin := math.max(0, math.min(priceBins - 1, lowBin))
-        closeBin := math.max(0, math.min(priceBins - 1, closeBin))
+        // Bounds check (use adaptive bin count)
+        openBin := math.max(0, math.min(priceBinsActual - 1, openBin))
+        highBin := math.max(0, math.min(priceBinsActual - 1, highBin))
+        lowBin := math.max(0, math.min(priceBinsActual - 1, lowBin))
+        closeBin := math.max(0, math.min(priceBinsActual - 1, closeBin))
 
         // Distribute volume
         array.set(volumeAtPrice, openBin, array.get(volumeAtPrice, openBin) + (barVolume * 0.25))
@@ -440,7 +474,10 @@ if barstate.isconfirmed or barstate.islast
                text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
 
     table.cell(infoTable, 0, 2, "Price Bins:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-    table.cell(infoTable, 1, 2, str.tostring(priceBins),
+    table.cell(infoTable, 1, 2,
+               useAdaptiveBins ?
+               str.tostring(priceBinsActual) + " (adaptive)" :
+               str.tostring(priceBinsActual),
                text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
 
     table.cell(infoTable, 0, 3, "Total Levels:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
