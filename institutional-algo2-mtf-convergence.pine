@@ -2,6 +2,13 @@
 indicator(title="Institutional Algo 2: Multi-Timeframe Volume Convergence", shorttitle="Inst MTF Convergence", overlay=false, precision=0)
 
 // ============================================================================
+// LIBRARY IMPORTS
+// ============================================================================
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/MTFUtils/1 as mtf_lib
+import redshad0ww/RegimeDetection/1 as regime_lib
+
+// ============================================================================
 // ALGORITHM 2: MULTI-TIMEFRAME VOLUME CONVERGENCE DETECTOR
 // ============================================================================
 // Identifies sustained institutional campaigns by detecting volume increases
@@ -42,74 +49,36 @@ showVolumePlots = input.bool(true, "Show Volume Plots", group="Visualization")
 // Debug
 debugMode = input.bool(false, "Debug Mode", group="Debug")
 
-// ============================= FUNCTIONS ====================================
-
-// Function to auto-detect next logical timeframe
-getHigherTimeframe(baseTF) =>
-    string result = ""
-    tfInMinutes = timeframe.in_seconds(baseTF) / 60
-    if tfInMinutes <= 1
-        result := "5"
-    else if tfInMinutes <= 3
-        result := "15"
-    else if tfInMinutes <= 5
-        result := "15"
-    else if tfInMinutes <= 15
-        result := "60"
-    else if tfInMinutes <= 30
-        result := "60"
-    else if tfInMinutes <= 60
-        result := "240"
-    else if tfInMinutes <= 240
-        result := "D"
-    else if tfInMinutes < 1440
-        result := "D"
-    else if baseTF == "D"
-        result := "W"
-    else if baseTF == "W"
-        result := "M"
-    else
-        result := "M"
-    result
-
-// Get second higher timeframe
-getSecondHigherTimeframe(baseTF) =>
-    firstHTF = getHigherTimeframe(baseTF)
-    getHigherTimeframe(firstHTF)
+// ============================= TIMEFRAME DETECTION (using MTFUtils library) ====
 
 // Auto-detect or use manual timeframes
-higherTF1 = manualHTF1 == "" ? getHigherTimeframe(currentTF) : manualHTF1
-higherTF2 = manualHTF2 == "" ? getSecondHigherTimeframe(currentTF) : manualHTF2
+higherTF1 = manualHTF1 == "" ? mtf_lib.getHigherTimeframe(currentTF) : manualHTF1
+higherTF2 = manualHTF2 == "" ? mtf_lib.getSecondHigherTimeframe(currentTF) : manualHTF2
 
 // ============================= CALCULATIONS =================================
 
 // CURRENT TIMEFRAME ANALYSIS
 currentVolume = volume
 currentAvgVolume = ta.sma(volume, volumeLookback)
-currentRelVol = currentAvgVolume > 0 and not na(currentAvgVolume) ? currentVolume / currentAvgVolume : 1.0
+currentRelVol = math_lib.safeDivide(currentVolume, currentAvgVolume, 1.0)
 
 // HIGHER TIMEFRAME 1 ANALYSIS
 [htf1Volume, htf1AvgVolume] = request.security(syminfo.tickerid, higherTF1, [volume, ta.sma(volume, volumeLookback)], lookahead=barmerge.lookahead_off)
-htf1RelVol = htf1AvgVolume > 0 and not na(htf1AvgVolume) and not na(htf1Volume) ? htf1Volume / htf1AvgVolume : 1.0
+htf1RelVol = math_lib.safeDivide(htf1Volume, htf1AvgVolume, 1.0)
 
 // HIGHER TIMEFRAME 2 ANALYSIS
 [htf2Volume, htf2AvgVolume] = request.security(syminfo.tickerid, higherTF2, [volume, ta.sma(volume, volumeLookback)], lookahead=barmerge.lookahead_off)
-htf2RelVol = htf2AvgVolume > 0 and not na(htf2AvgVolume) and not na(htf2Volume) ? htf2Volume / htf2AvgVolume : 1.0
+htf2RelVol = math_lib.safeDivide(htf2Volume, htf2AvgVolume, 1.0)
 
-// ============================= REGIME DETECTION =============================
+// ============================= REGIME DETECTION (using RegimeDetection library) ===
 
-// ATR-based volatility regime
-currentATR = ta.atr(atrLength)
-avgATR = ta.sma(ta.atr(atrLength), atrLookback)
-atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
-
-// Classify volatility regime
-isHighVol = atrRatio > 1.3  // Current volatility >30% above average
-isLowVol = atrRatio < 0.7   // Current volatility <30% below average
-isNormalVol = not isHighVol and not isLowVol
-
-// Regime label
-regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
+// Get regime data from library
+regimeData = regime_lib.detectRegime(atrLength, atrLookback)
+atrRatio = regimeData.atrRatio
+isHighVol = regimeData.isHighVol
+isLowVol = regimeData.isLowVol
+isNormalVol = regimeData.isNormalVol
+regimeName = regimeData.name
 
 // Adaptive divergence threshold based on regime
 adaptiveDivergence = divergenceThreshold
@@ -141,7 +110,7 @@ else if htf2RelVol > htf1RelVol or htf1RelVol > currentRelVol
 // 3. PRICE ACTION CONFIRMATION (0-28 points)
 currentRange = (high - low) / close
 avgRange = ta.sma(currentRange, volumeLookback)
-rangeRatio = avgRange > 0 and not na(avgRange) ? currentRange / avgRange : 1.0
+rangeRatio = math_lib.safeDivide(currentRange, avgRange, 1.0)
 
 priceScore = 0.0
 patternLabel = ""
