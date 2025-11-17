@@ -170,6 +170,17 @@ agreementLabel = agreementCount == 3 ? "Strong (3/3)" :
      agreementCount == 2 ? "Moderate (2/3)" :
      agreementCount == 1 ? "Weak (1/3)" : "None (0/3)"
 
+// Alert variables
+agreement = agreementCount  // Compatibility with alert messages
+confidence = agreementCount == 3 ? "Very High" :
+     agreementCount == 2 ? "High" :
+     agreementCount == 1 ? "Medium" : "Low"
+
+// Determine institutional type based on dominant algorithm
+institutionalType = algo1_score >= algo2_score and algo1_score >= algo3_score ? "Volume Efficiency" :
+     algo2_score >= algo1_score and algo2_score >= algo3_score ? "MTF Convergence" :
+     "Bayesian Regime"
+
 // ============================= VISUALIZATION ================================
 
 // Plot ensemble score
@@ -250,8 +261,14 @@ if showTable
 
 // ============================= ALERTS =======================================
 
-alertcondition(ta.crossover(ensembleScore, scoreThreshold), title="Ensemble Signal",
-     message="Institutional Ensemble score crossed above " + str.tostring(scoreThreshold))
+// Alert 1: Ensemble score crosses above threshold
+if ta.crossover(ensembleScore, scoreThreshold)
+    alert("ENSEMBLE: Institutional " + institutionalType + " detected on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Confidence: " + confidence + ")", alert.freq_once_per_bar_close)
 
-alertcondition(isInstitutional and agreementCount >= 2, title="Strong Agreement",
-     message="Strong institutional signal - " + str.tostring(agreementCount) + "/3 algorithms agree")
+// Alert 2: All 3 algorithms agree (high confidence)
+if agreement == 3 and isInstitutional and not (isInstitutional[1] and agreement[1] == 3)
+    alert("VERY HIGH CONFIDENCE: All 3 algorithms detect institutional activity on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Type: " + institutionalType + ")", alert.freq_once_per_bar_close)
+
+// Alert 3: Signal ended
+if ta.crossunder(ensembleScore, scoreThreshold)
+    alert("Institutional activity ended on " + syminfo.ticker + " (Score dropped below threshold)", alert.freq_once_per_bar_close)
