@@ -1,5 +1,5 @@
 //@version=5
-indicator('Institutional Volume Efficiency Detector [Trend Filtered]', shorttitle = 'IVED-TF', overlay = false, format = format.price, precision = 0, max_labels_count = 500)
+indicator('Institutional Algo 1: Volume Efficiency Detector', shorttitle = 'IA1-VED', overlay = false, format = format.price, precision = 0, max_labels_count = 500)
 
 // ============================================================================
 // LIBRARY IMPORTS

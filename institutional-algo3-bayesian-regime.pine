@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="Institutional Algo 3: Bayesian Regime Classifier", shorttitle="Inst Bayesian", overlay=false, precision=0, max_bars_back=500)
+indicator(title="Institutional Algo 3: Bayesian Regime Classifier", shorttitle="IA3-BRC", overlay=false, precision=0, max_bars_back=500)
 
 // ============================================================================
 // LIBRARY IMPORTS
