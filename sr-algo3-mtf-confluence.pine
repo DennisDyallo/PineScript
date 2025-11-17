@@ -17,17 +17,17 @@ manualTF2 = input.timeframe("", "Timeframe 2 (auto if empty)", group="Timeframes
 manualTF3 = input.timeframe("", "Timeframe 3 (auto if empty)", group="Timeframes", tooltip="Leave empty for auto-detection")
 
 // Swing Detection per Timeframe
-swingLeftBars = input.int(10, "Swing Detection - Left Bars", minval=5, maxval=20, group="Swing Detection")
-swingRightBars = input.int(10, "Swing Detection - Right Bars", minval=5, maxval=20, group="Swing Detection")
-minProminence = input.float(0.02, "Minimum Prominence %", minval=0.01, maxval=0.10, step=0.01, group="Swing Detection")
+swingLeftBars = input.int(8, "Swing Detection - Left Bars", minval=5, maxval=20, group="Swing Detection")
+swingRightBars = input.int(8, "Swing Detection - Right Bars", minval=5, maxval=20, group="Swing Detection")
+minProminence = input.float(0.015, "Minimum Prominence %", minval=0.01, maxval=0.10, step=0.005, group="Swing Detection")
 
 // Confluence Settings
-mergeTolerance = input.float(0.015, "Level Merge Tolerance %", minval=0.005, maxval=0.05, step=0.005, group="Confluence", tooltip="Distance to consider levels as 'same' across timeframes")
-minTimeframeCount = input.int(2, "Minimum Timeframes for Display", minval=1, maxval=3, group="Confluence", tooltip="Only show levels appearing on this many timeframes")
+mergeTolerance = input.float(0.012, "Level Merge Tolerance %", minval=0.005, maxval=0.05, step=0.001, group="Confluence", tooltip="Distance to consider levels as 'same' across timeframes")
+minTimeframeCount = input.int(1, "Minimum Timeframes for Display", minval=1, maxval=3, group="Confluence", tooltip="Only show levels appearing on this many timeframes")
 
 // Strength Filtering
-minStrength = input.int(60, "Minimum Strength to Display", minval=40, maxval=85, group="Display")
-maxLevels = input.int(10, "Maximum Levels to Display", minval=5, maxval=20, group="Display")
+minStrength = input.int(50, "Minimum Strength to Display", minval=40, maxval=85, group="Display")
+maxLevels = input.int(20, "Maximum Levels to Display", minval=5, maxval=30, group="Display")
 showLabels = input.bool(true, "Show Strength Labels", group="Display")
 showTimeframeCount = input.bool(true, "Show Timeframe Count in Labels", group="Display")
 
@@ -42,7 +42,19 @@ atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group=
 getHigherTimeframe(baseTF) =>
     tfInMinutes = timeframe.in_seconds(baseTF) / 60
     string result = ""
-    if tfInMinutes <= 1
+
+    // Check for daily, weekly, monthly first (handle both "D" and "1D" formats)
+    isDaily = baseTF == "D" or baseTF == "1D" or tfInMinutes == 1440
+    isWeekly = baseTF == "W" or baseTF == "1W" or tfInMinutes == 10080
+    isMonthly = baseTF == "M" or baseTF == "1M" or tfInMinutes >= 43200
+
+    if isMonthly
+        result := "M"
+    else if isWeekly
+        result := "M"
+    else if isDaily
+        result := "W"
+    else if tfInMinutes <= 1
         result := "5"
     else if tfInMinutes <= 3
         result := "15"
@@ -58,12 +70,8 @@ getHigherTimeframe(baseTF) =>
         result := "D"
     else if tfInMinutes < 1440
         result := "D"
-    else if baseTF == "D"
-        result := "W"
-    else if baseTF == "W"
-        result := "M"
     else
-        result := "M"
+        result := "W"
     result
 
 getSecondHigherTimeframe(baseTF) =>
@@ -227,15 +235,16 @@ mergeAcrossTimeframes() =>
             array.push(cluster, currentLevel)
             array.set(processed, i, true)
 
-            // Find all nearby levels
-            for j = i + 1 to array.size(allLevels) - 1
-                if not array.get(processed, j)
-                    otherLevel = array.get(allLevels, j)
-                    distance = math.abs(currentLevel.price - otherLevel.price) / currentLevel.price
+            // Find all nearby levels (only if there are more elements to check)
+            if i + 1 < array.size(allLevels)
+                for j = i + 1 to array.size(allLevels) - 1
+                    if not array.get(processed, j)
+                        otherLevel = array.get(allLevels, j)
+                        distance = math.abs(currentLevel.price - otherLevel.price) / currentLevel.price
 
-                    if distance <= mergeTolerance
-                        array.push(cluster, otherLevel)
-                        array.set(processed, j, true)
+                        if distance <= mergeTolerance
+                            array.push(cluster, otherLevel)
+                            array.set(processed, j, true)
 
             // Calculate merged level properties
             if array.size(cluster) > 0
