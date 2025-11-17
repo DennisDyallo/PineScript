@@ -1,198 +1,320 @@
-//@version=5
-indicator(title="Institutional Algo 1: Volume Efficiency & Absorption", shorttitle="Inst Vol Efficiency", overlay=false, precision=0)
+//@version=6
+indicator('Institutional Volume Efficiency Detector [Trend Filtered]', shorttitle = 'IVED-TF', overlay = false, format = format.price, precision = 0, max_labels_count = 500)
 
 // ============================================================================
-// ALGORITHM 1: VOLUME EFFICIENCY & ABSORPTION DETECTOR
+// INPUTS
 // ============================================================================
-// Detects institutional accumulation/distribution through high volume with
-// minimal price movement (absorption pattern)
+i_volumeLookback = input.int(20, 'Volume Lookback Period', minval = 10, maxval = 100, group = 'Core Settings', tooltip = 'Period for calculating average volume and efficiency metrics')
+
+i_volumeThreshold = input.float(1.5, 'Volume Threshold (x Avg)', minval = 1.0, maxval = 5.0, step = 0.1, group = 'Core Settings', tooltip = 'Minimum volume multiplier vs average to trigger detection')
+
+i_efficiencyThreshold = input.float(1.3, 'Efficiency Threshold', minval = 1.0, maxval = 3.0, step = 0.1, group = 'Core Settings', tooltip = 'Volume-to-range ratio multiplier for high efficiency detection')
+
+i_scoreThreshold = input.int(70, 'Score Threshold', minval = 50, maxval = 90, group = 'Core Settings', tooltip = 'Minimum score (0-100) to flag as institutional candle')
+
+// Trend Filter Settings
+i_useTrendFilter = input.bool(true, 'Enable Trend Filter', group = 'Trend Filter', tooltip = 'Only flag signals aligned with trend direction')
+
+i_trendFilterStrength = input.string('Medium', 'Filter Strength', options = ['Weak', 'Medium', 'Strong'], group = 'Trend Filter', tooltip = 'Weak=Small penalty, Medium=50% penalty, Strong=Reject counter-trend')
+
+i_minADX = input.int(20, 'Minimum ADX', minval = 10, maxval = 50, group = 'Trend Filter', tooltip = 'Minimum ADX to consider market trending (lower = less strict)')
+
+// Visual Settings
+i_showTable = input.bool(true, 'Show Metrics Table', group = 'Display')
+i_showLabels = input.bool(true, 'Show Score Labels', group = 'Display')
+i_showBackground = input.bool(true, 'Highlight High Scores', group = 'Display')
+i_debugMode = input.bool(false, 'Debug Mode', group = 'Advanced', tooltip = 'Show all intermediate calculations')
+
+// ============================================================================
+// VOLUME METRICS
 // ============================================================================
 
-// ============================= INPUTS =======================================
-
-// Volume Settings
-volumeLookback = input.int(20, "Volume Lookback Period", minval=10, maxval=100, group="Volume Settings", tooltip="Period for calculating average volume")
-volumeThreshold = input.float(1.5, "Volume Threshold (x Average)", minval=1.0, maxval=5.0, step=0.1, group="Volume Settings", tooltip="Minimum volume multiplier vs average")
-
-// Efficiency Settings
-efficiencyThreshold = input.float(1.3, "Efficiency Threshold", minval=1.0, maxval=3.0, step=0.1, group="Efficiency Settings", tooltip="Volume-to-range ratio multiplier threshold")
-
-// Scoring Settings
-scoreThreshold = input.int(70, "Score Threshold (Institutional)", minval=50, maxval=90, group="Scoring", tooltip="Minimum score to flag as institutional candle")
-
-// Visualization Settings
-showTable = input.bool(true, "Show Info Table", group="Visualization")
-showMarkers = input.bool(true, "Show Chart Markers", group="Visualization")
-showBackground = input.bool(true, "Show Background Tint", group="Visualization")
-
-// Debug Settings
-debugMode = input.bool(false, "Debug Mode", group="Debug", tooltip="Show all intermediate calculations")
-
-// Color Settings
-col_low = input.color(color.new(color.red, 0), "Low Score Color (0-30)", group="Colors")
-col_medium_low = input.color(color.new(color.orange, 0), "Medium-Low Score (30-50)", group="Colors")
-col_medium = input.color(color.new(color.yellow, 0), "Medium Score (50-70)", group="Colors")
-col_high = input.color(color.new(color.green, 0), "High Score (70-100)", group="Colors")
-
-// ============================= CALCULATIONS =================================
-
-// 1. VOLUME METRICS (0-50 points)
-avgVolume = ta.sma(volume, volumeLookback)
+avgVolume = ta.sma(volume, i_volumeLookback)
+// FIXED: Added NA protection to prevent early-bar errors
 relativeVolume = avgVolume > 0 and not na(avgVolume) ? volume / avgVolume : 1.0
-volumeScore = math.min(50, math.max(0, (relativeVolume - 1) * 25))
+volumeScore = math.max(0, math.min(50, (relativeVolume - 1.0) * 25.0))
 
-// 2. PRICE EFFICIENCY METRICS (0-30 points)
+// ============================================================================
+// PRICE EFFICIENCY METRICS
+// ============================================================================
+
 priceRange = high - low
-avgPriceRange = ta.sma(priceRange, volumeLookback)
+avgPriceRange = ta.sma(priceRange, i_volumeLookback)
+// FIXED: Added NA protection
 relativeRange = avgPriceRange > 0 and not na(avgPriceRange) ? priceRange / avgPriceRange : 1.0
 
-// Volume per unit of price movement (prevent division by zero)
-minRange = close * 0.0001
-volumeEfficiency = priceRange > minRange ? volume / priceRange : volume / minRange
-avgVolumeEfficiency = ta.sma(volumeEfficiency, volumeLookback)
-efficiencyRatio = avgVolumeEfficiency > 0 and not na(avgVolumeEfficiency) ? volumeEfficiency / avgVolumeEfficiency : 1.0
+// Improved efficiency calculation with bounds
+safeRange = math.max(priceRange, close * 0.001)
+volumeEfficiency = volume / safeRange
+avgVolumeEfficiency = ta.sma(volumeEfficiency, i_volumeLookback)
 
-// Score: 0-30 points for high efficiency (cap at ratio of 100 to avoid extreme doji scores)
-efficiencyScore = efficiencyRatio > efficiencyThreshold and efficiencyRatio < 100 ? math.min(30, (efficiencyRatio - 1) * 15) : 0.0
+// FIXED: Added comprehensive NA protection and improved bounds checking
+efficiencyRatio = avgVolumeEfficiency > 0 and not na(avgVolumeEfficiency) ? math.min(5.0, volumeEfficiency / avgVolumeEfficiency) : 1.0
 
-// 3. WICK ANALYSIS - Limit Order Detection (0-20 points)
+// Only score if ratio is reasonable (1.3-4.0x range)
+efficiencyScore = efficiencyRatio >= i_efficiencyThreshold and efficiencyRatio <= 4.0 ? math.min(30, (efficiencyRatio - 1.0) * 15.0) : 0.0
+
+// ============================================================================
+// WICK ANALYSIS
+// ============================================================================
+
 bodySize = math.abs(close - open)
 upperWick = high - math.max(open, close)
 lowerWick = math.min(open, close) - low
 totalWickSize = upperWick + lowerWick
-wickRatio = priceRange > minRange ? totalWickSize / priceRange : 0.0
+wickRatio = totalWickSize / math.max(priceRange, close * 0.0001)
 
-// Score: 0-20 points for significant wicks (indicates limit orders being filled)
-wickScore = wickRatio > 0.3 ? math.min(20, wickRatio * 40) : 0.0
+wickScore = wickRatio > 0.3 ? math.min(20, wickRatio * 40.0) : 0.0
 
-// 4. CLOSE POSITION - Controlled Accumulation (0-10 points)
-// Where did candle close in its range? (0=low, 0.5=middle, 1=high)
-closePosition = priceRange > minRange ? (close - low) / priceRange : 0.5
+// ============================================================================
+// CLOSE POSITION ANALYSIS WITH PRICE CONTEXT
+// ============================================================================
 
-// Institutional accumulation tends to close near middle (0.4-0.6)
-// Distribution might close near highs (institutions selling into strength)
+closePosition = (close - low) / math.max(priceRange, close * 0.0001)
+
+// Determine if at local high/low (last 10 bars)
+highest10 = ta.highest(high, 10)
+lowest10 = ta.lowest(low, 10)
+atLocalHigh = high >= highest10[1] // Current high is highest in last 10
+atLocalLow = low <= lowest10[1] // Current low is lowest in last 10
+
+// Price momentum (3-bar change)
+priceChange3 = (close - close[3]) / close[3] * 100
+isRising = priceChange3 > 1.0
+isFalling = priceChange3 < -1.0
+
 controlScore = 0.0
-if closePosition >= 0.4 and closePosition <= 0.6 and relativeVolume > 1.5
+accumulationPattern = false
+distributionPattern = false
+
+// ACCUMULATION PATTERNS:
+// 1. Mid-close with volume after decline (classic absorption)
+if closePosition >= 0.35 and closePosition <= 0.65 and relativeVolume > 1.3 and (isFalling or atLocalLow)
+    controlScore := 12.0
+    accumulationPattern := true
+    accumulationPattern
+
+// 2. Upper close with volume after decline (buying pressure overwhelming sellers)
+else if closePosition > 0.65 and relativeVolume > 1.8 and (isFalling or atLocalLow)
     controlScore := 10.0
-else if closePosition > 0.7 and relativeVolume > 2.0
-    controlScore := 5.0
+    accumulationPattern := true
+    accumulationPattern
 
-// 5. FINAL SCORE CALCULATION (0-100)
-totalScore = volumeScore + efficiencyScore + wickScore + controlScore
-institutionalScore = math.min(100, math.max(0, totalScore))
+// DISTRIBUTION PATTERNS:
+// 3. Upper close with volume at local high (selling into strength)
+else if closePosition > 0.70 and relativeVolume > 1.8 and (isRising or atLocalHigh)
+    controlScore := 8.0
+    distributionPattern := true
+    distributionPattern
 
-// Binary flag
-isInstitutional = institutionalScore >= scoreThreshold
+// 4. Mid-close with volume at local high (resistance/rejection)
+else if closePosition >= 0.40 and closePosition <= 0.60 and relativeVolume > 1.8 and atLocalHigh
+    controlScore := 7.0
+    distributionPattern := true
+    distributionPattern
 
-// Classification
-institutionalType = ""
-if isInstitutional
-    if closePosition >= 0.4 and closePosition <= 0.6
-        institutionalType := "Accumulation"
-    else if closePosition > 0.7
-        institutionalType := "Distribution"
-    else
-        institutionalType := "Mixed"
+// 5. Lower close with volume (panic selling/capitulation - can be accumulation opportunity)
+else if closePosition < 0.30 and relativeVolume > 2.0 and isFalling
+    controlScore := 6.0
+    distributionPattern := true // Marking as distribution but could be climax
+    distributionPattern
 
-// ============================= VISUALIZATION ================================
+// ============================================================================
+// TREND CONTEXT FILTER
+// ============================================================================
 
-// Color gradient based on score
-scoreColor = institutionalScore >= 70 ? col_high : institutionalScore >= 50 ? col_medium : institutionalScore >= 30 ? col_medium_low : col_low
+// Trend detection using multiple EMAs
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
 
-// Main histogram plot
-plot(institutionalScore, "Institutional Score", color=scoreColor, style=plot.style_histogram, linewidth=2)
+// Classify trend state
+isUptrend = close > ema50 and ema20 > ema50 and ema50 > ema200
+isDowntrend = close < ema50 and ema20 < ema50 and ema50 < ema200
+isRanging = not isUptrend and not isDowntrend
 
-// Threshold line
-hline(scoreThreshold, "Threshold", color=color.new(color.white, 50), linestyle=hline.style_dashed, linewidth=1)
-hline(50, "Midline", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
-hline(30, "Low", color=color.new(color.gray, 80), linestyle=hline.style_dotted)
+// Trend strength via ADX
+[diPlus, diMinus, adx] = ta.dmi(14, 14)
+isTrending = adx > i_minADX
+isStrongTrend = adx > 35
 
-// Background color when flagged
-bgcolor(showBackground and isInstitutional ? color.new(scoreColor, 90) : na, title="Institutional Background")
+// ============================================================================
+// FINAL SCORE WITH TREND FILTERING
+// ============================================================================
 
-// Chart markers
-plotshape(showMarkers and isInstitutional and institutionalType == "Accumulation" ? institutionalScore : na, "Accumulation Signal", shape.triangleup, location.bottom, color.new(color.green, 0), size=size.small)
-plotshape(showMarkers and isInstitutional and institutionalType == "Distribution" ? institutionalScore : na, "Distribution Signal", shape.triangledown, location.top, color.new(color.red, 0), size=size.small)
+rawScore = volumeScore + efficiencyScore + wickScore + controlScore
+baseScore = math.min(100, math.max(0, rawScore))
 
-// ============================= INFO TABLE ===================================
+// Apply trend filter
+institutionalScore = baseScore
+trendAligned = false
 
-if showTable
-    var table infoTable = table.new(position.top_right, 2, 8, border_width=1)
+if i_useTrendFilter
+    // Determine penalty/boost based on filter strength
+    penaltyMultiplier = i_trendFilterStrength == 'Strong' ? 0.0 : i_trendFilterStrength == 'Medium' ? 0.5 : 0.7
+    boostMultiplier = 1.1
 
-    if barstate.islast
-        // Header
-        table.cell(infoTable, 0, 0, "Institutional Detection", text_color=color.white, bgcolor=color.new(color.blue, 30), text_size=size.normal)
-        table.merge_cells(infoTable, 0, 0, 1, 0)
+    // ACCUMULATION signals
+    if accumulationPattern
+        if isUptrend or isRanging and not isDowntrend
+            // Aligned: accumulation in uptrend or ranging market
+            institutionalScore := baseScore * boostMultiplier
+            trendAligned := true
+            trendAligned
+        else if isDowntrend and isTrending
+            // Counter-trend: accumulation in strong downtrend
+            institutionalScore := baseScore * penaltyMultiplier
+            trendAligned := false
+            trendAligned
+        else // Weak trend, allow signal
+            trendAligned := true
+            trendAligned
 
-        // Current Status
-        table.cell(infoTable, 0, 1, "Current Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(infoTable, 1, 1, str.tostring(math.round(institutionalScore, 0)), text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
+    // DISTRIBUTION signals
+    else if distributionPattern
+        if isDowntrend or isRanging and close > ema50
+            // Aligned: distribution in downtrend or at resistance
+            institutionalScore := baseScore * boostMultiplier
+            trendAligned := true
+            trendAligned
+        else if isUptrend and isTrending
+            // Counter-trend: distribution in strong uptrend
+            institutionalScore := baseScore * penaltyMultiplier
+            trendAligned := false
+            trendAligned
+        else // Weak trend, allow signal
+            trendAligned := true
+            trendAligned
+    else // MIXED pattern - no strong directional bias
+        trendAligned := true
+        trendAligned
+else // No filter enabled
+    trendAligned := true
+    trendAligned
 
-        table.cell(infoTable, 0, 2, "Type:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.cell(infoTable, 1, 2, institutionalType, text_color=color.white, bgcolor=color.new(scoreColor, 50), text_size=size.small)
+// Cap final score
+institutionalScore := math.min(100, institutionalScore)
 
-        // Components
-        table.cell(infoTable, 0, 3, "Components:", text_color=color.yellow, bgcolor=color.new(color.gray, 70), text_size=size.small)
-        table.merge_cells(infoTable, 0, 3, 1, 3)
+// Binary classification
+isInstitutional = institutionalScore >= i_scoreThreshold and trendAligned
 
-        volCheck = relativeVolume > volumeThreshold ? "✓" : "✗"
-        table.cell(infoTable, 0, 4, "Volume:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 4, volCheck + " (" + str.tostring(relativeVolume, "#.#") + "x)", text_color=relativeVolume > volumeThreshold ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+// Pattern classification
+patternType = accumulationPattern and trendAligned ? 'ACCUM' : distributionPattern and trendAligned ? 'DIST' : 'MIXED'
 
-        effCheck = efficiencyRatio > efficiencyThreshold ? "✓" : "✗"
-        table.cell(infoTable, 0, 5, "Efficiency:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 5, effCheck + " (" + str.tostring(efficiencyRatio, "#.#") + "x)", text_color=efficiencyRatio > efficiencyThreshold ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+// ============================================================================
+// BACKTESTING REMOVED
+// ============================================================================
+// NOTE: The original backtesting code has been removed because it was
+// fundamentally broken. In PineScript, close[n] looks BACKWARD n bars,
+// not FORWARD. Indicators cannot access future data, so true backtesting
+// of forward returns is impossible in this context.
+//
+// For proper backtesting, you would need to:
+// 1. Convert this to a strategy (not an indicator)
+// 2. Use strategy.entry/strategy.exit with proper order logic
+// 3. Or export signals and backtest in external software
+// ============================================================================
 
-        wickCheck = wickRatio > 0.3 ? "✓" : "✗"
-        table.cell(infoTable, 0, 6, "Wicks:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 6, wickCheck + " (" + str.tostring(wickRatio * 100, "#.#") + "%)", text_color=wickRatio > 0.3 ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+// ============================================================================
+// VISUALIZATION
+// ============================================================================
 
-        controlCheck = closePosition >= 0.4 and closePosition <= 0.6 ? "✓" : "✗"
-        table.cell(infoTable, 0, 7, "Control:", text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.small)
-        table.cell(infoTable, 1, 7, controlCheck + " (Pos: " + str.tostring(closePosition * 100, "#") + "%)", text_color=closePosition >= 0.4 and closePosition <= 0.6 ? color.lime : color.gray, bgcolor=color.new(color.gray, 80), text_size=size.small)
+hline(i_scoreThreshold, 'Threshold', color = color.white, linestyle = hline.style_dashed, linewidth = 1)
+hline(0, 'Zero', color = color.gray, linestyle = hline.style_solid, linewidth = 1)
 
-// ============================= DEBUG TABLE ==================================
+scoreColor = institutionalScore >= 70 ? color.new(color.green, 0) : institutionalScore >= 50 ? color.new(color.yellow, 0) : institutionalScore >= 30 ? color.new(color.orange, 0) : color.new(color.red, 0)
 
-if debugMode
-    var table debugTable = table.new(position.bottom_right, 2, 8, border_width=1)
+plot(institutionalScore, 'Institutional Score', color = scoreColor, style = plot.style_histogram, linewidth = 3)
 
-    if barstate.islast
-        // Header
-        table.cell(debugTable, 0, 0, "DEBUG MODE", text_color=color.black, bgcolor=color.yellow, text_size=size.small)
-        table.merge_cells(debugTable, 0, 0, 1, 0)
+// Debug plots
+plot(i_debugMode ? volumeScore : na, 'Volume Score', color = color.new(color.blue, 50), style = plot.style_line, linewidth = 1)
+plot(i_debugMode ? efficiencyScore : na, 'Efficiency Score', color = color.new(color.purple, 50), style = plot.style_line, linewidth = 1)
+plot(i_debugMode ? wickScore : na, 'Wick Score', color = color.new(color.aqua, 50), style = plot.style_line, linewidth = 1)
 
-        // Volume Details
-        table.cell(debugTable, 0, 1, "Avg Volume:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 1, str.tostring(avgVolume, "#.#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+// ADX plot for trend strength
+plot(i_debugMode ? adx : na, 'ADX', color = color.new(color.white, 30), style = plot.style_line, linewidth = 1)
 
-        table.cell(debugTable, 0, 2, "Volume Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 2, str.tostring(volumeScore, "#.#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+// ============================================================================
+// CHART MARKERS
+// ============================================================================
 
-        // Efficiency Details
-        table.cell(debugTable, 0, 3, "Efficiency Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 3, str.tostring(efficiencyScore, "#.#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+if i_showLabels and isInstitutional
+    labelColor = accumulationPattern ? color.new(color.green, 20) : distributionPattern ? color.new(color.red, 20) : color.new(color.orange, 20)
 
-        // Wick Details
-        table.cell(debugTable, 0, 4, "Wick Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 4, str.tostring(wickScore, "#.#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+    labelText = str.tostring(math.round(institutionalScore)) + '\n' + patternType
 
-        table.cell(debugTable, 0, 5, "Upper Wick:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 5, str.tostring(upperWick, "#.##"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+    label.new(bar_index, institutionalScore, text = labelText, style = label.style_label_up, color = labelColor, textcolor = color.white, size = size.small)
 
-        table.cell(debugTable, 0, 6, "Lower Wick:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 6, str.tostring(lowerWick, "#.##"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+bgcolor(i_showBackground and isInstitutional ? accumulationPattern ? color.new(color.green, 92) : color.new(color.red, 92) : na, title = 'Signal Background')
 
-        // Control Details
-        table.cell(debugTable, 0, 7, "Control Score:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
-        table.cell(debugTable, 1, 7, str.tostring(controlScore, "#.#"), text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.tiny)
+// ============================================================================
+// METRICS TABLE
+// ============================================================================
 
-// ============================= ALERTS =======================================
+if i_showTable
+    maxRows = i_debugMode ? 13 : 12
+    var table metricsTable = table.new(position.top_right, 2, maxRows, border_width = 2, border_color = color.new(color.gray, 50), frame_width = 1, frame_color = color.new(color.gray, 50))
 
-// Alert when score crosses above threshold
-alertcondition(ta.crossover(institutionalScore, scoreThreshold), "Institutional Activity Detected", "HIGH CONFIDENCE: Institutional " + institutionalType + " detected on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
+    // Header
+    table.cell(metricsTable, 0, 0, 'Institutional Detection', bgcolor = color.new(color.blue, 70), text_color = color.white, text_size = size.normal)
+    table.merge_cells(metricsTable, 0, 0, 1, 0)
 
-// Alert when score crosses below threshold
-alertcondition(ta.crossunder(institutionalScore, scoreThreshold), "Institutional Activity Ended", "Institutional activity ended on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
+    // Current metrics
+    table.cell(metricsTable, 0, 1, 'Current Score:', text_halign = text.align_left, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 1, str.tostring(math.round(institutionalScore)), text_color = scoreColor, text_size = size.normal)
 
-// High confidence alert (score > 85)
-alertcondition(institutionalScore > 85 and not (institutionalScore[1] > 85), "Very High Confidence Signal", "VERY HIGH CONFIDENCE: Institutional " + institutionalType + " on {{ticker}} (Score: " + str.tostring(institutionalScore, "#") + ")")
+    table.cell(metricsTable, 0, 2, 'Pattern Type:', text_halign = text.align_left, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 2, patternType, text_color = accumulationPattern ? color.lime : distributionPattern ? color.red : color.orange)
+
+    table.cell(metricsTable, 0, 3, 'Status:', text_halign = text.align_left, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 3, isInstitutional ? '✓ ACTIVE' : '○ Inactive', text_color = isInstitutional ? color.lime : color.new(color.white, 50))
+
+    // Trend information
+    table.cell(metricsTable, 0, 4, 'Trend:', text_halign = text.align_left, text_color = color.new(color.white, 20))
+    trendText = isUptrend ? '↑ UP' : isDowntrend ? '↓ DOWN' : '↔ RANGE'
+    trendColor = isUptrend ? color.lime : isDowntrend ? color.red : color.orange
+    table.cell(metricsTable, 1, 4, trendText, text_color = trendColor)
+
+    table.cell(metricsTable, 0, 5, 'ADX:', text_halign = text.align_left, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 5, str.tostring(math.round(adx, 1)), text_color = isTrending ? color.lime : color.new(color.white, 50))
+
+    table.cell(metricsTable, 0, 6, 'Aligned:', text_halign = text.align_left, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 6, trendAligned ? '✓ YES' : '✗ NO', text_color = trendAligned ? color.lime : color.red)
+
+    // Component scores header
+    table.cell(metricsTable, 0, 7, 'Components:', bgcolor = color.new(color.gray, 70), text_color = color.white, text_size = size.small)
+    table.merge_cells(metricsTable, 0, 7, 1, 7)
+
+    table.cell(metricsTable, 0, 8, 'Volume:', text_halign = text.align_left, text_size = size.small, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 8, str.tostring(math.round(relativeVolume, 2)) + 'x (' + str.tostring(math.round(volumeScore)) + ')', text_color = relativeVolume > i_volumeThreshold ? color.lime : color.new(color.white, 50), text_size = size.small)
+
+    table.cell(metricsTable, 0, 9, 'Efficiency:', text_halign = text.align_left, text_size = size.small, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 9, str.tostring(math.round(efficiencyRatio, 2)) + 'x (' + str.tostring(math.round(efficiencyScore)) + ')', text_color = efficiencyScore > 0 ? color.lime : color.new(color.white, 50), text_size = size.small)
+
+    table.cell(metricsTable, 0, 10, 'Wick Ratio:', text_halign = text.align_left, text_size = size.small, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 10, str.tostring(math.round(wickRatio * 100)) + '% (' + str.tostring(math.round(wickScore)) + ')', text_color = wickScore > 0 ? color.lime : color.new(color.white, 50), text_size = size.small)
+
+    table.cell(metricsTable, 0, 11, 'Close Pos:', text_halign = text.align_left, text_size = size.small, text_color = color.new(color.white, 20))
+    table.cell(metricsTable, 1, 11, str.tostring(math.round(closePosition * 100)) + '% (' + str.tostring(math.round(controlScore)) + ')', text_color = controlScore > 0 ? color.lime : color.new(color.white, 50), text_size = size.small)
+
+    // Add price context indicators
+    if i_debugMode
+        table.cell(metricsTable, 0, 12, 'Context:', text_halign = text.align_left, text_size = size.small, text_color = color.new(color.white, 20))
+        contextText = (atLocalHigh ? '📈Top ' : '') + (atLocalLow ? '📉Bot ' : '') + (isRising ? '⬆️Up ' : '') + (isFalling ? '⬇️Dn' : '')
+        table.cell(metricsTable, 1, 12, contextText, text_size = size.small, text_color = color.new(color.white, 10))
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+// Alert 1: Trend-aligned institutional signal
+if ta.crossover(institutionalScore, i_scoreThreshold) and trendAligned
+    alert('Institutional activity detected with trend alignment on ' + syminfo.ticker + ' (Score: ' + str.tostring(math.round(institutionalScore)) + ', Type: ' + patternType + ')', alert.freq_once_per_bar_close)
+
+// Alert 2: Accumulation in uptrend
+if isInstitutional and accumulationPattern and isUptrend and not (isInstitutional[1] and accumulationPattern[1] and isUptrend[1])
+    alert('Strong accumulation signal in established uptrend on ' + syminfo.ticker + ' (Score: ' + str.tostring(math.round(institutionalScore)) + ')', alert.freq_once_per_bar_close)
+
+// Alert 3: Distribution in downtrend
+if isInstitutional and distributionPattern and isDowntrend and not (isInstitutional[1] and distributionPattern[1] and isDowntrend[1])
+    alert('Strong distribution signal in established downtrend on ' + syminfo.ticker + ' (Score: ' + str.tostring(math.round(institutionalScore)) + ')', alert.freq_once_per_bar_close)
