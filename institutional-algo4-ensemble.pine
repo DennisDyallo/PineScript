@@ -213,16 +213,16 @@ if showTable
     table.merge_cells(ensembleTable, 0, 0, 1, 0)
 
     // Ensemble score
-    table.cell(ensembleTable, 0, 1, "Ensemble Score:", text_halign=text.align_left)
+    table.cell(ensembleTable, 0, 1, "Ensemble Score:", text_halign=text.align_left, text_color=color.new(color.white, 20))
     table.cell(ensembleTable, 1, 1, str.tostring(math.round(ensembleScore)), text_color=scoreColor)
 
     // Status
-    table.cell(ensembleTable, 0, 2, "Status:", text_halign=text.align_left)
+    table.cell(ensembleTable, 0, 2, "Status:", text_halign=text.align_left, text_color=color.new(color.white, 20))
     table.cell(ensembleTable, 1, 2, isInstitutional ? "✓ ACTIVE" : "○ Inactive",
          text_color=isInstitutional ? color.lime : color.new(color.white, 50))
 
     // Agreement
-    table.cell(ensembleTable, 0, 3, "Agreement:", text_halign=text.align_left)
+    table.cell(ensembleTable, 0, 3, "Agreement:", text_halign=text.align_left, text_color=color.new(color.white, 20))
     table.cell(ensembleTable, 1, 3, agreementLabel,
          text_color=agreementCount >= 2 ? color.lime : color.orange)
 
@@ -232,17 +232,17 @@ if showTable
     table.merge_cells(ensembleTable, 0, 4, 1, 4)
 
     // Algorithm scores
-    table.cell(ensembleTable, 0, 5, "Efficiency:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 0, 5, "Efficiency:", text_halign=text.align_left, text_size=size.small, text_color=color.new(color.white, 20))
     table.cell(ensembleTable, 1, 5, str.tostring(math.round(algo1_score)) + " (" +
          str.tostring(math.round(normWeight1 * 100)) + "%)", text_size=size.small,
          text_color=algo1_score >= 70 ? color.lime : color.new(color.white, 50))
 
-    table.cell(ensembleTable, 0, 6, "MTF Convergence:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 0, 6, "MTF Convergence:", text_halign=text.align_left, text_size=size.small, text_color=color.new(color.white, 20))
     table.cell(ensembleTable, 1, 6, str.tostring(math.round(algo2_score)) + " (" +
          str.tostring(math.round(normWeight2 * 100)) + "%)", text_size=size.small,
          text_color=algo2_score >= 70 ? color.lime : color.new(color.white, 50))
 
-    table.cell(ensembleTable, 0, 7, "Bayesian:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 0, 7, "Bayesian:", text_halign=text.align_left, text_size=size.small, text_color=color.new(color.white, 20))
     table.cell(ensembleTable, 1, 7, str.tostring(math.round(algo3_score)) + " (" +
          str.tostring(math.round(normWeight3 * 100)) + "%)", text_size=size.small,
          text_color=algo3_score >= 70 ? color.lime : color.new(color.white, 50))
@@ -252,10 +252,10 @@ if showTable
          text_color=color.white, text_size=size.small)
     table.merge_cells(ensembleTable, 0, 8, 1, 8)
 
-    table.cell(ensembleTable, 0, 9, "Volatility:", text_halign=text.align_left, text_size=size.small)
-    table.cell(ensembleTable, 1, 9, regimeData3.name, text_size=size.small)
+    table.cell(ensembleTable, 0, 9, "Volatility:", text_halign=text.align_left, text_size=size.small, text_color=color.new(color.white, 20))
+    table.cell(ensembleTable, 1, 9, regimeData3.name, text_size=size.small, text_color=color.new(color.white, 50))
 
-    table.cell(ensembleTable, 0, 10, "ADX:", text_halign=text.align_left, text_size=size.small)
+    table.cell(ensembleTable, 0, 10, "ADX:", text_halign=text.align_left, text_size=size.small, text_color=color.new(color.white, 20))
     table.cell(ensembleTable, 1, 10, str.tostring(math.round(trendData3.adxValue, 1)),
          text_size=size.small, text_color=trendData3.isTrending ? color.lime : color.new(color.white, 50))
 
