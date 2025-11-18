@@ -1,5 +1,5 @@
 //@version=5
-indicator("MKN: HMA Bands + S/R Exit Strategy", shorttitle="MKN: MKN: HMA + S/R", overlay=true)
+indicator("MKN: HMA Bands + S/R Exit Strategy", shorttitle="MKN: HMA + S/R", overlay=true)
 
 // ============================================================================
 // HMA BANDS WITH VOLUME-CONFIRMED EXITS + S/R CONFLUENCE
