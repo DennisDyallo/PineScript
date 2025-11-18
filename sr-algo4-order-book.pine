@@ -67,6 +67,9 @@ isLowVol = regimeData.isLowVol
 isNormalVol = regimeData.isNormalVol
 regimeMultiplier = regimeData.multiplier  // Smoothly interpolated between 0.85-1.15
 
+// For dynamic clustering (needed below)
+currentATR = ta.atr(atrLength)
+
 // ============================= VOLUME CALCULATIONS ==========================
 // Duplicated from TECH-DEBT.md - Section 3: Volume Calculations
 
@@ -350,8 +353,7 @@ if barstate.islast and array.size(rejectionLevels) > 0
             distance = level_lib.calculateDistance(rejection.price, close)
 
             // ATR-adaptive distance scale (low vol: tight scale, high vol: wide scale)
-            currentATR_local = ta.atr(atrLength)
-            distanceATRPct = math_lib.safeDivide(currentATR_local, close, 0.015)
+            distanceATRPct = math_lib.safeDivide(currentATR, close, 0.015)
             distanceScale = math.max(0.05, math.min(0.30, distanceATRPct * 3.0))
             // ATR=1%: scale=3%, ATR=5%: scale=15%, ATR=10%: scale=30%
 
