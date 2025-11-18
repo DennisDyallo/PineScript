@@ -1,6 +1,5 @@
 //@version=5
 // @description Trend detection utilities using EMA and ADX for institutional indicators
-// @version 1.0.0
 library("TrendDetection")
 
 // ============================================================================

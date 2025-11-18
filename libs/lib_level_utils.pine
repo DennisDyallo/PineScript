@@ -1,6 +1,5 @@
 //@version=5
 // @description Common utility functions for S/R level distance, touch detection, and rejection analysis
-// @version 1.0.0
 library("LevelUtils")
 
 // ============================================================================

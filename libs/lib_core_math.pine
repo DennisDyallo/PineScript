@@ -1,6 +1,5 @@
 //@version=5
 // @description Core mathematical utilities with safety features for preventing runtime errors
-// @version 1.0.0
 library("CoreMath")
 
 // ============================================================================

@@ -1,6 +1,5 @@
 //@version=5
 // @description ATR-based volatility regime detection for institutional trading indicators
-// @version 1.0.0
 library("RegimeDetection")
 
 // ============================================================================

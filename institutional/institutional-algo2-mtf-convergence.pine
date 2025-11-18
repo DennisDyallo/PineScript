@@ -69,9 +69,9 @@ indicator(title="Institutional Algo 2: Multi-Timeframe Volume Convergence", shor
 // ============================================================================
 // LIBRARY IMPORTS
 // ============================================================================
-import redshad0ww/CoreMath/1 as math_lib
-import redshad0ww/MTFUtils/1 as mtf_lib
-import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/CoreMath/3 as math_lib
+import redshad0ww/MTFUtils/3 as mtf_lib
+import redshad0ww/RegimeDetection/3 as regime_lib
 
 // ============================================================================
 // ALGORITHM 2: MULTI-TIMEFRAME VOLUME CONVERGENCE DETECTOR

@@ -1,6 +1,5 @@
 //@version=5
 // @description Multi-timeframe utilities for calculating higher timeframes programmatically
-// @version 1.0.0
 library("MTFUtils")
 
 // ============================================================================
