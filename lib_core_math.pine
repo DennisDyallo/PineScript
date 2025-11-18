@@ -83,3 +83,31 @@ export clamp(float value, float minValue, float maxValue) =>
 // @returns value if valid, fallback otherwise
 export valueOrFallback(float value, float fallback) =>
     isValidValue(value) ? value : fallback
+
+// ============================================================================
+// MOVING AVERAGE CALCULATIONS
+// ============================================================================
+
+// @function Calculates Hull Moving Average (HMA) using triple-weighted smoothing
+// @param source The price series to calculate HMA on (typically close)
+// @param length The period for HMA calculation
+// @returns HMA value
+// @example hma21 = calculateHMA(close, 21) => 21-period Hull Moving Average
+// @note HMA formula: WMA(2 × WMA(n/2) - WMA(n), sqrt(n))
+// @note HMA responds faster to price changes than SMA/EMA while reducing lag
+export calculateHMA(series float source, simple int length) =>
+    halfLength = length / 2
+    sqrtLength = math.round(math.sqrt(length))
+    wma1 = ta.wma(source, halfLength)
+    wma2 = ta.wma(source, length)
+    raw = 2 * wma1 - wma2
+    hma = ta.wma(raw, sqrtLength)
+    hma
+
+// @function Calculates standard deviation for Bollinger-style bands
+// @param source The price series to calculate standard deviation on
+// @param length The period for standard deviation calculation
+// @returns Standard deviation value
+// @example stdDev = calculateStdDev(close, 21) => 21-period standard deviation
+export calculateStdDev(series float source, simple int length) =>
+    ta.stdev(source, length)
