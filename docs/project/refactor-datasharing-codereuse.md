@@ -81,7 +81,7 @@ export type CustomData
 
 // ===== FILE: my_indicator.pine (uses library) =====
 //@version=5
-indicator("My Indicator", overlay=true)
+indicator\('TKN: "My Indicator", overlay=true)
 
 import username/my_library/1 as lib
 
@@ -108,7 +108,7 @@ plot(result)
 ```pinescript
 // ===== PRODUCER INDICATOR =====
 //@version=5
-indicator("Data Producer", overlay=true)
+indicator\('TKN: "Data Producer", overlay=true)
 
 calculatedValue = ta.sma(close, 20)
 
@@ -119,7 +119,7 @@ plot(calculatedValue, "Exported_Value",
 
 // ===== CONSUMER INDICATOR =====
 //@version=5
-indicator("Data Consumer", overlay=true)
+indicator\('TKN: "Data Consumer", overlay=true)
 
 // Import the calculated value
 importedValue = input.source(close, "Select Data Source",
@@ -419,7 +419,7 @@ export utilityFunction(float value, float threshold) =>
 
 ```pinescript
 //@version=5
-indicator("My Indicator", overlay=true)
+indicator\('TKN: "My Indicator", overlay=true)
 
 // ===== IMPORT LIBRARY =====
 // Format: import username/library_name/version as alias
@@ -507,7 +507,7 @@ import yourname/library_name/2 as lib_v2  // Test new version 2
 
 ```pinescript
 //@version=5
-indicator("Data Producer", overlay=true)
+indicator\('TKN: "Data Producer", overlay=true)
 
 // ===== CALCULATE YOUR VALUES =====
 calculatedValue1 = ta.sma(close, 20)
@@ -573,7 +573,7 @@ if barstate.islast
 
 ```pinescript
 //@version=5
-indicator("Data Consumer", overlay=true)
+indicator\('TKN: "Data Consumer", overlay=true)
 
 // ===== IMPORT DATA VIA INPUT.SOURCE =====
 // Default to 'close' so indicator works without setup
@@ -693,7 +693,7 @@ All connections should show "✓ Connected".
 
 ```pinescript
 //@version=5
-indicator("Data Hub - Centralized Bridge", overlay=true)
+indicator\('TKN: "Data Hub - Centralized Bridge", overlay=true)
 
 // ===== IMPORT FROM MULTIPLE SOURCES =====
 source1_value = input.source(close, "Source 1 Value", group="Imports")
@@ -803,7 +803,7 @@ export type Signal
 
 ```pinescript
 //@version=5
-indicator("Indicator A", overlay=true)
+indicator\('TKN: "Indicator A", overlay=true)
 
 // Import library
 import username/core_lib/1 as lib
@@ -835,7 +835,7 @@ plot(signal.strength, "ExportA_Strength", display=display.none)
 
 ```pinescript
 //@version=5
-indicator("Indicator B", overlay=true)
+indicator\('TKN: "Indicator B", overlay=true)
 
 // Import same library
 import username/core_lib/1 as lib
@@ -867,7 +867,7 @@ plot(signal.strength, "ExportB_Strength", display=display.none)
 
 ```pinescript
 //@version=5
-indicator("Ensemble", overlay=true)
+indicator\('TKN: "Ensemble", overlay=true)
 
 // Import library for utility functions
 import username/core_lib/1 as lib
@@ -1451,7 +1451,7 @@ plot(lib.calculate())
 
 ```pinescript
 //@version=5
-indicator("Library Test Suite", overlay=true)
+indicator\('TKN: "Library Test Suite", overlay=true)
 
 import username/mylib/1 as lib
 
@@ -1500,7 +1500,7 @@ if not (test1_passed and test2_passed and test3_passed)
 
 ```pinescript
 //@version=5
-indicator("Data Bridge Test", overlay=true)
+indicator\('TKN: "Data Bridge Test", overlay=true)
 
 // Import
 imported = input.source(close, "Test Import")
@@ -1539,7 +1539,7 @@ if barstate.islast
 
 ```pinescript
 //@version=5
-indicator("Performance Test", overlay=true)
+indicator\('TKN: "Performance Test", overlay=true)
 
 // Test expensive operation
 startTime = timenow
@@ -1618,7 +1618,7 @@ export defaultConfig() =>
 
 ```pinescript
 //@version=5
-indicator("MA Fast", overlay=true)
+indicator\('TKN: "MA Fast", overlay=true)
 
 import username/ma_lib/1 as ma
 
@@ -1643,7 +1643,7 @@ plot(fastMA, "Export_FastMA", color.new(config.col, 100), display=display.none)
 
 ```pinescript
 //@version=5
-indicator("MA Slow", overlay=true)
+indicator\('TKN: "MA Slow", overlay=true)
 
 import username/ma_lib/1 as ma
 
@@ -1668,7 +1668,7 @@ plot(slowMA, "Export_SlowMA", color.new(config.col, 100), display=display.none)
 
 ```pinescript
 //@version=5
-indicator("MA Crossover Strategy", overlay=true)
+indicator\('TKN: "MA Crossover Strategy", overlay=true)
 
 // Import library for types
 import username/ma_lib/1 as ma

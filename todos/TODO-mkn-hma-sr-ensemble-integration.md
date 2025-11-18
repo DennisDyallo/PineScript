@@ -68,7 +68,7 @@ buySignalEnhanced = buySignal and atSRConfluence
 
 Combine full logic from both indicators:
 ```pinescript
-indicator("MKN: Exit Strategy (HMA + S/R)", overlay=true)
+indicator\('TKN: "MKN: Exit Strategy (HMA + S/R)", overlay=true)
 
 // Include HMA calculation
 hmaFast = f_hma(close, 55)

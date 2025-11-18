@@ -30,10 +30,10 @@
 **Pine Script Changes:**
 ```pinescript
 // OLD (v1.0)
-indicator("S/R Ensemble Detector", ...)
+indicator\('TKN: "S/R Ensemble Detector", ...)
 
 // NEW (v1.1)
-indicator("S/R Ensemble Detector (ALPHA v1.1)", ...)
+indicator\('TKN: "S/R Ensemble Detector (ALPHA v1.1)", ...)
 
 // Added header warning:
 // ⚠️ ALPHA STATUS: THEORETICAL DESIGN - EMPIRICAL VALIDATION PENDING ⚠️

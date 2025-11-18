@@ -848,7 +848,7 @@ User can increase to 30 if desired
 
 **Performance consideration:**
 
-- Max 50 lines (TradingView limit specified in indicator())
+- Max 50 lines (TradingView limit specified in indicator\('TKN: ))
 - Max 20 labels (TradingView limit)
 - Setting maxLevels > 20 will show lines but not all labels
 
