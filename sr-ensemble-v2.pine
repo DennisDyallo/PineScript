@@ -85,8 +85,7 @@ currentATR = ta.atr(atrLen)
 // Object-based clustering - NO parallel arrays = NO synchronization bugs!
 // Takes array of SRLevel objects, returns clustered array of SRLevel objects
 f_clusterLevels(array<SRLevel> levels, float tolerance) =>
-    var array<SRLevel> result = array.new<SRLevel>()
-    array.clear(result)
+    array<SRLevel> result = array.new<SRLevel>()  // No 'var' - create new array each call!
 
     levelCount = array.size(levels)
 
