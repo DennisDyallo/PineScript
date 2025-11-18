@@ -251,13 +251,14 @@ if enableStat and (barstate.isconfirmed or barstate.islast)
 
     // Convert to levels
     clusterSize = array.size(clusteredPrices)
-    for i = 0 to clusterSize - 1
-        price = array.get(clusteredPrices, i)
-        type = array.get(clusteredTypes, i)
-        strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
+    if clusterSize > 0
+        for i = 0 to clusterSize - 1
+            price = array.get(clusteredPrices, i)
+            type = array.get(clusteredTypes, i)
+            strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
 
-        level = SRLevel.new(price, type, strength, "STAT")
-        array.push(statLevels, level)
+            level = SRLevel.new(price, type, strength, "STAT")
+            array.push(statLevels, level)
 
 // ============================= ALGORITHM 3: MTF =========================== ==
 
@@ -306,13 +307,14 @@ if enableMTF and (barstate.isconfirmed or barstate.islast)
 
     // Convert to levels
     clusterSize = array.size(clusteredPrices)
-    for i = 0 to clusterSize - 1
-        price = array.get(clusteredPrices, i)
-        type = array.get(clusteredTypes, i)
-        strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
+    if clusterSize > 0
+        for i = 0 to clusterSize - 1
+            price = array.get(clusteredPrices, i)
+            type = array.get(clusteredTypes, i)
+            strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
 
-        level = SRLevel.new(price, type, strength, "MTF")
-        array.push(mtfLevels, level)
+            level = SRLevel.new(price, type, strength, "MTF")
+            array.push(mtfLevels, level)
 
 // ============================= ALGORITHM 4: ORDER BOOK ======================
 
@@ -362,13 +364,14 @@ if enableOB and (barstate.isconfirmed or barstate.islast)
 
     // Convert to levels
     clusterSize = array.size(clusteredPrices)
-    for i = 0 to clusterSize - 1
-        price = array.get(clusteredPrices, i)
-        type = array.get(clusteredTypes, i)
-        strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
+    if clusterSize > 0
+        for i = 0 to clusterSize - 1
+            price = array.get(clusteredPrices, i)
+            type = array.get(clusteredTypes, i)
+            strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
 
-        level = SRLevel.new(price, type, strength, "OB")
-        array.push(obLevels, level)
+            level = SRLevel.new(price, type, strength, "OB")
+            array.push(obLevels, level)
 
 // ============================= ENSEMBLE MERGING =============================
 
