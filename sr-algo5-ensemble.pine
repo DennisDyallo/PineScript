@@ -213,31 +213,34 @@ if enableAlgo2 and (barstate.isconfirmed or barstate.islast)
     array.clear(swingBars)
     array.clear(swingTypes)
 
-    // Detect pivots
-    for i = statSwingBars to math.min(200, bar_index - statSwingBars)
-        // Check for pivot high
-        isPivotHigh = true
-        for j = i - statSwingBars to i + statSwingBars
-            if j != i and high[bar_index - j] >= high[bar_index - i]
-                isPivotHigh := false
-                break
+    // Detect pivots (ensure we have enough bars)
+    if bar_index >= statSwingBars * 2
+        for i = statSwingBars to math.min(200, bar_index - statSwingBars)
+            // Check for pivot high
+            isPivotHigh = true
+            for j = i - statSwingBars to i + statSwingBars
+                if j != i and j >= 0 and j <= bar_index
+                    if high[bar_index - j] >= high[bar_index - i]
+                        isPivotHigh := false
+                        break
 
-        if isPivotHigh
-            array.push(swingPrices, high[bar_index - i])
-            array.push(swingBars, i)
-            array.push(swingTypes, "Resistance")
+            if isPivotHigh
+                array.push(swingPrices, high[bar_index - i])
+                array.push(swingBars, i)
+                array.push(swingTypes, "Resistance")
 
-        // Check for pivot low
-        isPivotLow = true
-        for j = i - statSwingBars to i + statSwingBars
-            if j != i and low[bar_index - j] <= low[bar_index - i]
-                isPivotLow := false
-                break
+            // Check for pivot low
+            isPivotLow = true
+            for j = i - statSwingBars to i + statSwingBars
+                if j != i and j >= 0 and j <= bar_index
+                    if low[bar_index - j] <= low[bar_index - i]
+                        isPivotLow := false
+                        break
 
-        if isPivotLow
-            array.push(swingPrices, low[bar_index - i])
-            array.push(swingBars, i)
-            array.push(swingTypes, "Support")
+            if isPivotLow
+                array.push(swingPrices, low[bar_index - i])
+                array.push(swingBars, i)
+                array.push(swingTypes, "Support")
 
     // Cluster swing points
     if array.size(swingPrices) > 0
@@ -313,29 +316,32 @@ if enableAlgo3 and (barstate.isconfirmed or barstate.islast)
     array.clear(mtfTimeframeWeights)
     array.clear(mtfTypes)
 
-    // Current TF swings
-    for i = mtfSwingBars to math.min(100, bar_index - mtfSwingBars)
-        // Pivot high
-        isPH = true
-        for j = i - mtfSwingBars to i + mtfSwingBars
-            if j != i and high[bar_index - j] >= high[bar_index - i]
-                isPH := false
-                break
-        if isPH
-            array.push(mtfPrices, high[bar_index - i])
-            array.push(mtfTimeframeWeights, 1)
-            array.push(mtfTypes, "Resistance")
+    // Current TF swings (ensure we have enough bars)
+    if bar_index >= mtfSwingBars * 2
+        for i = mtfSwingBars to math.min(100, bar_index - mtfSwingBars)
+            // Pivot high
+            isPH = true
+            for j = i - mtfSwingBars to i + mtfSwingBars
+                if j != i and j >= 0 and j <= bar_index
+                    if high[bar_index - j] >= high[bar_index - i]
+                        isPH := false
+                        break
+            if isPH
+                array.push(mtfPrices, high[bar_index - i])
+                array.push(mtfTimeframeWeights, 1)
+                array.push(mtfTypes, "Resistance")
 
-        // Pivot low
-        isPL = true
-        for j = i - mtfSwingBars to i + mtfSwingBars
-            if j != i and low[bar_index - j] <= low[bar_index - i]
-                isPL := false
-                break
-        if isPL
-            array.push(mtfPrices, low[bar_index - i])
-            array.push(mtfTimeframeWeights, 1)
-            array.push(mtfTypes, "Support")
+            // Pivot low
+            isPL = true
+            for j = i - mtfSwingBars to i + mtfSwingBars
+                if j != i and j >= 0 and j <= bar_index
+                    if low[bar_index - j] <= low[bar_index - i]
+                        isPL := false
+                        break
+            if isPL
+                array.push(mtfPrices, low[bar_index - i])
+                array.push(mtfTimeframeWeights, 1)
+                array.push(mtfTypes, "Support")
 
     // Merge and score (simplified clustering)
     if array.size(mtfPrices) > 0
