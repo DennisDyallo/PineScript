@@ -2,6 +2,71 @@
 indicator(title="Institutional Algo 2: Multi-Timeframe Volume Convergence", shorttitle="IA2-MTF-Conv", overlay=false, precision=0)
 
 // ============================================================================
+// LABEL DOCUMENTATION
+// ============================================================================
+//
+// WHAT THE MARKERS MEAN:
+//
+// Chart Markers: Circle shapes (no text labels in this algo)
+//   - Green circle (bottom) = Accumulation pattern
+//   - Red circle (top) = Distribution/Breakout pattern
+//   - Position shows MTF convergence score (0-100)
+//
+// MTF Score (0-100): Multi-timeframe volume alignment
+//   - Convergence Score (0-35): Volume spike across timeframes
+//     • 35 pts: All 3 TFs above threshold (strongest)
+//     • 22 pts: Any 2 TFs above threshold
+//     • 12 pts: Only 1 TF above threshold
+//
+//   - Building Pattern Score (0-20): Campaign detection
+//     • 20 pts: Volume accelerating (HTF2 > HTF1 > Current)
+//     • 12 pts: HTF volume leading (Current > HTF1)
+//     • 8 pts: Moderate current TF volume spike
+//     • Detects institutional "building" vs "mature" campaigns
+//
+//   - Price Action Score (0-30): Pattern confirmation
+//     • 30 pts: Compressed range + mid-close (accumulation)
+//     • 25 pts: Expanded range + extreme close (distribution/breakout)
+//     • 15 pts: Neutral or mixed price action
+//
+//   - Regime Score (0-15): Volatility adjustment
+//     • +15 pts: High confidence in low volatility
+//     • +10 pts: Medium confidence in normal volatility
+//     • +5 pts: Low confidence in high volatility (noisy)
+//
+// Timeframes Auto-Detected (customizable):
+//   - Current chart TF + 2 higher timeframes
+//   - Example: 1H → [1H, 4H, D] or 5min → [5min, 15min, 1H]
+//   - Convergence = institutional activity at multiple scales
+//
+// Pattern Types:
+//   - Accumulation: Compressed range + volume convergence
+//     • Institutions absorbing supply quietly
+//     • Best in ranging/low volatility markets
+//
+//   - Distribution/Breakout: Expanded range + volume convergence
+//     • Institutions distributing or forcing breakout
+//     • Can be bullish breakout or bearish distribution
+//
+// Adaptive Divergence Threshold:
+//   - Low vol: Tighter threshold (0.8× base)
+//   - Normal vol: Standard threshold
+//   - High vol: Wider threshold (1.5× base)
+//   - Auto-adjusts to market conditions
+//
+// Visual Cues:
+//   - Histogram Color: Green (≥70), Yellow (50-69), Orange (<50)
+//   - Circle Size: Small (all markers same size)
+//   - Background Tint: Light green/red when institutional detected
+//
+// Best Use Cases:
+//   - Detecting sustained institutional campaigns (not single candles)
+//   - Confirming that volume isn't just noise on current TF
+//   - Spotting "building" patterns before major moves
+//
+// ============================================================================
+
+// ============================================================================
 // LIBRARY IMPORTS
 // ============================================================================
 import redshad0ww/CoreMath/1 as math_lib

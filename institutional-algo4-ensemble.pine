@@ -12,6 +12,84 @@ indicator(title="Institutional Algo 4: Ensemble Detector", shorttitle="IA4-Ensem
 // ============================================================================
 
 // ============================================================================
+// LABEL DOCUMENTATION
+// ============================================================================
+//
+// WHAT THE LABELS MEAN:
+//
+// Format: "[Score]\n[Agreement]\n[Pattern]"
+//   Example: "85\n3/3 Algos\nACCUM" or "72\n2/3 Algos\nMIXED"
+//
+// Ensemble Score (0-100): Weighted average of 3 algorithms
+//   - Default weights:
+//     • Algorithm 1 (Volume Efficiency): 25%
+//     • Algorithm 2 (MTF Convergence): 35%
+//     • Algorithm 3 (Bayesian): 40%
+//   - Weights are normalized (only enabled algorithms count)
+//   - Customizable in settings
+//
+// Agreement Label: How many algorithms detected institutional activity
+//   - "3/3 Algos" = All 3 algorithms agree (VERY HIGH confidence)
+//   - "2/3 Algos" = Two algorithms agree (HIGH confidence)
+//   - "1/3 Algos" = One algorithm only (MODERATE confidence)
+//   - More agreement = stronger signal
+//
+// Consensus Pattern: Majority vote from all algorithms
+//   - ACCUM (Accumulation) = Majority vote for institutional buying
+//     • Algorithms agree it's accumulation pattern
+//     • Best reliability when 3/3 or 2/3 agreement
+//
+//   - DISTR (Distribution) = Majority vote for institutional selling
+//     • Algorithms agree it's distribution pattern
+//     • Best reliability when 3/3 or 2/3 agreement
+//
+//   - MIXED = No clear consensus
+//     • Algorithms disagree on pattern type
+//     • OR only 1/3 detected activity
+//     • Lower confidence, use with caution
+//
+// Individual Algorithm Contributions (shown in table):
+//   - Algo 1 Score: Volume efficiency + pattern detection + trend filter
+//   - Algo 2 Score: Multi-timeframe volume convergence + building patterns
+//   - Algo 3 Score: Bayesian probability with regime-specific priors
+//
+// Confidence Levels:
+//   - Very High: 3/3 agreement + score ≥80
+//     • All methodologies confirm institutional presence
+//     • Highest reliability
+//
+//   - High: 2/3 agreement + score ≥70
+//     • Two different approaches agree
+//     • Strong signal
+//
+//   - Moderate: 1/3 agreement OR score 60-69
+//     • Single detection or weak consensus
+//     • Requires additional confirmation
+//
+//   - Low: Score <60
+//     • Below threshold or conflicting signals
+//     • Not displayed by default
+//
+// Visual Cues:
+//   - Histogram Color: Green (≥70), Yellow (50-69), Orange (<50)
+//   - Label Color: Green (2-3 algos agree), Yellow (1 algo only)
+//   - Label Size: Small (all labels same size)
+//
+// Why Use Ensemble?
+//   - Combines 3 different methodologies (efficiency, MTF, Bayesian)
+//   - Reduces false positives (must pass multiple tests)
+//   - Higher accuracy than any single algorithm
+//   - Agreement count shows signal quality
+//
+// Best Use:
+//   - Wait for 2/3 or 3/3 agreement for highest confidence
+//   - Use pattern consensus (not individual patterns)
+//   - Cross-reference with S/R levels for entry/exit points
+//   - Higher scores + more agreement = stronger institutional presence
+//
+// ============================================================================
+
+// ============================================================================
 // LIBRARY IMPORTS
 // ============================================================================
 import redshad0ww/CoreMath/1 as math_lib

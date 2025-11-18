@@ -2,6 +2,56 @@
 indicator('Institutional Algo 1: Volume Efficiency Detector', shorttitle = 'IA1-VED', overlay = false, format = format.price, precision = 0, max_labels_count = 500)
 
 // ============================================================================
+// LABEL DOCUMENTATION
+// ============================================================================
+//
+// WHAT THE LABELS MEAN:
+//
+// Format: "[Score]\n[Pattern]"
+//   Example: "85\nACCUM" or "72\nDIST"
+//
+// Score (0-100): Institutional activity strength
+//   - Base components:
+//     • Volume Score (0-30): Relative volume vs 20-bar average
+//     • Efficiency Score (0-30): Volume-to-price-range ratio
+//     • Wick Score (0-20): Rejection wicks indicating absorption
+//     • Control Score (0-12): Pattern-specific price action
+//   - Trend filter adjustments:
+//     • Weak filter: ×0.85 penalty if counter-trend
+//     • Medium filter: ×0.50 penalty if counter-trend
+//     • Strong filter: Rejects counter-trend signals entirely
+//   - Threshold: ≥70 = institutional (default)
+//
+// Pattern Types:
+//   - ACCUM (Accumulation) = Institutional buying
+//     • Pattern 1: Mid-close + high volume after decline (classic absorption)
+//     • Pattern 2: Upper close + extreme volume after decline (aggressive)
+//     • Must be trend-aligned (uptrend or ranging market)
+//
+//   - DIST (Distribution) = Institutional selling
+//     • Pattern 3: Upper close + extreme volume at local high (into strength)
+//     • Pattern 4: Lower close + extreme volume at local high (stealth)
+//     • Must be trend-aligned (downtrend or at resistance)
+//
+//   - MIXED = Ambiguous or counter-trend signal
+//     • Detected pattern but not trend-aligned
+//     • Lower confidence, use with caution
+//
+// Visual Cues:
+//   - Histogram Color: Green (≥70), Yellow (50-69), Orange (30-49), Red (<30)
+//   - Label Color: Green (ACCUM), Red (DIST), Orange (MIXED)
+//   - Background Tint: Light green (ACCUM) or light red (DIST) when ≥threshold
+//   - Threshold Line: White dashed line at your configured level
+//
+// Trend Alignment (Critical):
+//   - Uses 50 EMA + ADX for trend detection
+//   - Only flags signals that align with market direction
+//   - Counter-trend signals are penalized or rejected
+//   - Ensures institutional activity matches market structure
+//
+// ============================================================================
+
+// ============================================================================
 // LIBRARY IMPORTS
 // ============================================================================
 import redshad0ww/CoreMath/1 as math_lib

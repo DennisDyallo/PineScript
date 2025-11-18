@@ -2,6 +2,85 @@
 indicator(title="Institutional Algo 3: Bayesian Regime Classifier", shorttitle="IA3-BRC", overlay=false, precision=0, max_bars_back=500)
 
 // ============================================================================
+// LABEL DOCUMENTATION
+// ============================================================================
+//
+// WHAT THE MARKERS MEAN:
+//
+// Chart Markers: Diamond shapes (no text labels)
+//   - Green diamond (bottom) = Accumulation pattern
+//   - Red diamond (top) = Distribution pattern
+//   - Position shows final Bayesian probability score (0-100)
+//
+// Final Score (0-100): Bayesian probability of institutional activity
+//   - Uses Bayes' theorem: P(Institutional|Evidence) = P(Evidence|Institutional) × P(Institutional) / P(Evidence)
+//   - NOT a simple sum - probabilistic classification
+//
+// Regime Classification (5 states):
+//   1. RangingLowVol (Green background)
+//      • Prior probability: 40% (highest institutional activity expected)
+//      • ADX < 20, ATR < 0.7× average
+//      • Best environment for detecting accumulation/distribution
+//
+//   2. TrendingLowVol (Orange background)
+//      • Prior probability: 30%
+//      • ADX ≥ 25, ATR < 0.7× average
+//      • Trending but controlled - good for institutional detection
+//
+//   3. RangingHighVol (Yellow background)
+//      • Prior probability: 25%
+//      • ADX < 20, ATR > 1.3× average
+//      • More noise, lower confidence
+//
+//   4. TrendingHighVol (Red background)
+//      • Prior probability: 15% (lowest)
+//      • ADX ≥ 25, ATR > 1.3× average
+//      • Most noise, hardest to detect institutions
+//
+//   5. Neutral (Gray background)
+//      • Prior probability: 20%
+//      • Transitional states
+//
+// Feature Detection (Likelihood Inputs):
+//   - High Volume: Volume > 2× average
+//   - High Efficiency: Volume-to-range ratio > 1.5×
+//   - Intrabar Balance: Lower TF analysis (50% balance threshold)
+//   - Volume Consistency: Cross-timeframe volume alignment
+//
+// Regime-Specific Likelihoods:
+//   - Each feature has different probability in each regime
+//   - Example: High volume in RangingLowVol = 70% institutional
+//   - Same feature in TrendingHighVol = 30% institutional
+//   - Algorithm learns market conditions
+//
+// Pattern Types:
+//   - Accumulation: Institutional buying
+//     • High efficiency + balanced intrabar distribution
+//     • Controlled absorption pattern
+//
+//   - Distribution: Institutional selling
+//     • High volume + imbalanced intrabar distribution
+//     • Unloading inventory into market
+//
+// Visual Cues:
+//   - Histogram Color: Green (≥70), Yellow (50-69), Orange (<50)
+//   - Background: Changes based on regime (5 colors)
+//   - Diamond Markers: Only when score ≥ threshold
+//
+// Why Bayesian?
+//   - Accounts for regime context (same volume different meaning)
+//   - Updates beliefs based on evidence
+//   - More sophisticated than simple threshold scoring
+//   - Better false positive filtering in noisy markets
+//
+// Intrabar Analysis:
+//   - Uses lower timeframe (default 5min) to analyze candle internals
+//   - Detects if volume was balanced or one-sided
+//   - Confirms pattern quality beyond OHLC alone
+//
+// ============================================================================
+
+// ============================================================================
 // LIBRARY IMPORTS
 // ============================================================================
 import redshad0ww/CoreMath/1 as math_lib
