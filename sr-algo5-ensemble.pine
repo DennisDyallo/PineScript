@@ -609,9 +609,7 @@ if barstate.isconfirmed or barstate.islast
                     distanceFromPrice = level_lib.calculateDistance(avgPrice, close)
 
                     // Color based on type and strength
-                    levelColor = currentLevel.levelType == "Support" ?
-                                (ensembleStrength >= 80 ? color.new(color.green, 0) : color.new(color.green, 30)) :
-                                (ensembleStrength >= 80 ? color.new(color.red, 0) : color.new(color.red, 30))
+                    levelColor = currentLevel.levelType == "Support" ? (ensembleStrength >= 80 ? color.new(color.green, 0) : color.new(color.green, 30)) : (ensembleStrength >= 80 ? color.new(color.red, 0) : color.new(color.red, 30))
 
                     // Create ensemble level
                     ensembleLevel = EnsembleLevel.new(
