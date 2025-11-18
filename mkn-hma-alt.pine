@@ -55,7 +55,7 @@ import redshad0ww/RegimeDetection/3 as regime_lib
 // HMA Parameters
 hmaFast = input.int(55, "Fast HMA", minval=5, maxval=100, group="HMA Bands")
 hmaSlow = input.int(89, "Slow HMA", minval=20, maxval=200, group="HMA Bands")
-stdDevMult = input.float(2.0, "StdDev Multiplier", minval=0.5, maxval=5.0, step=0.1, group="HMA Bands")
+stdDevMult = input.float(1.8, "StdDev Multiplier", minval=0.5, maxval=5.0, step=0.1, group="HMA Bands")
 
 // Volume Parameters
 volPeriod = input.int(20, "Volume MA Period", minval=10, maxval=50, group="Volume")
@@ -229,10 +229,16 @@ hmaMaxPrev = math.max(hmaFastLine[1], hmaSlowLine[1])
 // Check if current close is inside HMA band
 closeInsideBand = close >= hmaMin and close <= hmaMax
 
+// Check if previous close was inside HMA band
+prevCloseInsideBand = close[1] >= hmaMinPrev and close[1] <= hmaMaxPrev
+
 // Check if close crossed to other side (was above → now inside/below, OR was below → now inside/above)
 wasAboveBand = close[1] > hmaMaxPrev
 wasBelowBand = close[1] < hmaMinPrev
 crossedToOtherSide = (wasAboveBand and close <= hmaMax) or (wasBelowBand and close >= hmaMin)
+
+// Check if price gapped from inside band to outside on other side
+gappedOutOfBand = prevCloseInsideBand and (close > hmaMax or close < hmaMin)
 
 // Volume spike in current or previous 2 bars
 volSpikeInWindow = isVolSpike or isVolSpike[1] or isVolSpike[2]
@@ -240,11 +246,25 @@ volSpikeInWindow = isVolSpike or isVolSpike[1] or isVolSpike[2]
 // Check if close is outside the band (reset condition)
 closeOutsideBand = close > hmaMax or close < hmaMin
 
+// Check if price exited the band (was inside, now outside)
+exitedBand = prevCloseInsideBand and closeOutsideBand
+
+// Check if bar wicks through the band but doesn't close inside
+wickThroughBand = not closeInsideBand and ((high >= hmaMin and high <= hmaMax) or (low >= hmaMin and low <= hmaMax))
+
+// Check if bar opened inside band but closed outside (intrabar breakout)
+openInsideCloseOutside = (open >= hmaMin and open <= hmaMax) and closeOutsideBand
+
+// Check if current bar body is larger than previous bar body
+currBodySize = math.abs(close - open)
+prevBodySize = math.abs(close[1] - open[1])
+isBodyLarger = currBodySize > prevBodySize
+
 // Track reset: price was outside band since last yellow (or never had yellow yet)
 var bool hasReset = true
 
-// Yellow bar condition: (inside band OR crossed to other side) AND volume spike AND reset occurred
-isYellowBar = (closeInsideBand or crossedToOtherSide) and volSpikeInWindow and hasReset
+// Yellow bar condition: (inside band OR crossed to other side OR gapped out OR exited band OR wick through OR intrabar breakout) AND volume spike AND reset occurred AND body larger than previous
+isYellowBar = (closeInsideBand or crossedToOtherSide or gappedOutOfBand or exitedBand or wickThroughBand or openInsideCloseOutside) and volSpikeInWindow and hasReset and isBodyLarger
 
 // Update reset state after calculating isYellowBar
 if closeOutsideBand
@@ -272,10 +292,10 @@ plotshape(buySignal and not buySignalStrong and not buySignalEnhanced, "Buy Sign
      color.new(#00E676, 0), size=size.small, text="BUY")
 
 // Enhanced signals - S/R Confluence (diamonds - brighter and larger)
-plotshape(sellSignalStrongEnhanced, "Enhanced Sell (Strong + S/R)", shape.diamond, location.abovebar,
-     color.new(#FF0000, 0), size=size.large, text="SELL◆")
-plotshape(buySignalStrongEnhanced, "Enhanced Buy (Strong + S/R)", shape.diamond, location.belowbar,
-     color.new(#00FF00, 0), size=size.large, text="BUY◆")
+plotshape(sellSignalStrongEnhanced, "Enhanced Sell (Strong + S/R)", shape.labeldown, location.abovebar,
+     color.new(#ffffff, 0), size=size.large, text="SELL◆")
+plotshape(buySignalStrongEnhanced, "Enhanced Buy (Strong + S/R)", shape.labelup, location.belowbar,
+     color.new(#ffffff, 0), size=size.large, text="BUY◆")
 plotshape(sellSignalEnhanced and not sellSignalStrongEnhanced, "Enhanced Sell (S/R)", shape.diamond, location.abovebar,
      color.new(#FF0000, 0), size=size.normal, text="SELL◆")
 plotshape(buySignalEnhanced and not buySignalStrongEnhanced, "Enhanced Buy (S/R)", shape.diamond, location.belowbar,
@@ -369,7 +389,7 @@ if buySignal and not buySignalEnhanced and enableAlerts
 
 // HMA crossovers
 if hmaCrossUp and enableAlerts
-    alert("BULLISH CROSS - " + syminfo.ticker + " HMA 55 crossed above HMA 55", alert.freq_once_per_bar_close)
+    alert("BULLISH CROSS - " + syminfo.ticker + " HMA Fast crossed above HMA Flow", alert.freq_once_per_bar_close)
 
 if hmaCrossDown and enableAlerts
-    alert("BEARISH CROSS - " + syminfo.ticker + " HMA 55 crossed below HMA 55", alert.freq_once_per_bar_close)
+    alert("BEARISH CROSS - " + syminfo.ticker + " HMA Fast crossed below HMA Slow", alert.freq_once_per_bar_close)
