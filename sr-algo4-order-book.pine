@@ -23,6 +23,53 @@ indicator("S/R Algo 4: Order Book Reconstruction", shorttitle="S/R A4 Order Book
 // Previous: 60-65% estimated (pre-audit v1.0)
 // ============================================================================
 
+// ============================= LABEL DOCUMENTATION ==========================
+//
+// WHAT THE LABELS MEAN:
+//
+// Format: "[Type] [Strength]\n~[Volume]K"
+//   Example: "R 65\n~150K" or "S 78\n~320K"
+//
+// Type (abbreviated):
+//   - S = Support (lower wick rejections - buyers defending level)
+//   - R = Resistance (upper wick rejections - sellers defending level)
+//
+// Strength Score (0-100): Rejection quality calculation
+//   - Rejection count: More rejections = stronger level
+//   - Wick consistency: Mean wick strength - std deviation penalty
+//   - Volume concentration: Time-weighted volume estimate
+//   - Time decay: Recent rejections weighted higher (50-bar half-life)
+//   - Regime adjustment: Smoothly interpolated multiplier (0.85-1.15)
+//   - Stop cascade filter: Explosive wicks (>5× body) downweighted
+//
+// Volume Estimate (~XK): Estimated institutional order size
+//   - Calculated from rejection candle volumes
+//   - Assumes wick volume = absorption at that level
+//   - Time-weighted (recent rejections count more)
+//   - Displayed in thousands (K) for readability
+//   - NOT exact order size (OHLCV estimation only)
+//   - Higher volume = likely larger institutional presence
+//
+// Rejection Criteria:
+//   - Wick must be >30% of body size (or >150% for high-quality)
+//   - Volume must be >80% of 20-bar average (filtering noise)
+//   - Next-bar confirmation (not look-ahead bias)
+//   - ATR-adaptive clustering (0.5%-3% dynamic tolerance)
+//
+// Visual Cues:
+//   - Label Style: Up arrow (Support) or Down arrow (Resistance)
+//   - Line Color: Green (Support), Red (Resistance)
+//   - Color Intensity: Stronger = more opaque
+//   - Rejection Markers: Optional candle highlights (debug mode)
+//
+// Use Cases:
+//   - Identifying hidden institutional limit orders
+//   - Spotting absorption zones before breakouts
+//   - Complementary to Volume Profile (Algo 1)
+//   - Best on liquid markets with clean order flow
+//
+// ============================================================================
+
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/CoreMath/1 as math_lib
 import redshad0ww/RegimeDetection/2 as regime_lib

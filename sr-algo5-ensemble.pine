@@ -21,6 +21,52 @@ indicator("S/R Algo 5: Ensemble Detector", shorttitle="S/R Ensemble", overlay=tr
 // - Confidence: VERY HIGH (4 algos), HIGH (3), MODERATE (2), LOW (1)
 // ============================================================================
 
+// ============================= LABEL DOCUMENTATION ==========================
+//
+// WHAT THE LABELS MEAN:
+//
+// Format: "[Strength] ([Sources])"
+//   Example: "85 (VP+MTF+STAT)" or "72 (VP+STAT+MTF+OB)"
+//
+// Primary Number: Ensemble Strength Score (0-100)
+//   - Weighted average of participating algorithms
+//   - Weights: VP(30%) + MTF(25%) + Statistical(20%) + OrderBook(15%)
+//   - Agreement bonuses: 4/4 (+30%), 3/4 (+20%), 2/4 (+10%)
+//   - Can reach 100 even without 4/4 agreement (normalized weighting)
+//
+// Sources (in parentheses): Which algorithms detected this level
+//   - VP   = Volume Profile (institutional footprints)
+//   - STAT = Statistical Peaks (swing clustering)
+//   - MTF  = Multi-Timeframe (cross-TF alignment)
+//   - OB   = Order Book (rejection analysis)
+//
+// Agreement Patterns:
+//   - "100 (VP+STAT+MTF+OB)" = Perfect 4/4 agreement (VERY HIGH confidence)
+//   - "85 (VP+MTF+STAT)"     = 3/4 agreement (HIGH confidence)
+//   - "72 (MTF+STAT)"        = 2/4 agreement (MODERATE confidence)
+//   - "65 (VP)"              = 1/4 agreement (LOW confidence)
+//
+// Why 100 doesn't mean perfect agreement:
+//   - Weights are normalized to participating algorithms only
+//   - Example: If STAT=100, MTF=100 (2 algos)
+//     Base = (100×0.20 + 100×0.25) / (0.20+0.25) × 100 = 100
+//     With 2/4 bonus (1.10×), capped at 100
+//   - Better indicator: Count the sources (VP+MTF+STAT = 3 algos)
+//
+// Visual Cues:
+//   - Label Size: Normal (3-4 algos) or Small (1-2 algos)
+//   - Label Style: Up arrow (Support) or Down arrow (Resistance)
+//   - Label Color: Matches line (green for Support, red for Resistance)
+//   - Line Width: 3 (4/4 agreement), 2 (3/4), 1 (2/4 or 1/4)
+//
+// Confidence Levels:
+//   - VERY HIGH: 4/4 algorithms agree (80-90% accuracy target)
+//   - HIGH: 3/4 algorithms agree (75-85% accuracy target)
+//   - MODERATE: 2/4 algorithms agree (65-75% accuracy target)
+//   - LOW: 1/4 algorithm only (55-65% accuracy target)
+//
+// ============================================================================
+
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/CoreMath/1 as math_lib
 import redshad0ww/RegimeDetection/2 as regime_lib

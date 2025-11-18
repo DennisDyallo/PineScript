@@ -9,6 +9,38 @@ indicator("S/R Algo 1: Volume Profile Detection", shorttitle="S/R A1 Volume Prof
 // Target Accuracy: 75-85% for predicting S/R holds
 // ============================================================================
 
+// ============================= LABEL DOCUMENTATION ==========================
+//
+// WHAT THE LABELS MEAN:
+//
+// Format: "[Type] [Strength]"
+//   Example: "Support 85" or "Resistance 72"
+//
+// Type: Level classification
+//   - Support     = Price floor (buyers concentrated here)
+//   - Resistance  = Price ceiling (sellers concentrated here)
+//   - POC         = Point of Control (highest volume price - strongest level)
+//
+// Strength Score (0-100): Volume concentration + adjustments
+//   - Base score from volume distribution
+//   - POC always = 100 (highest volume by definition)
+//   - HVN (High Volume Nodes) = 60-95 based on volume rank
+//   - Adjustments: +15% per touch, +20% for rejections, +recency boost
+//
+// Visual Cues:
+//   - Label Style: Up arrow (Support/POC below), Down arrow (Resistance above)
+//   - Line Style: Solid (POC), Dashed (HVN/LVN)
+//   - Color Intensity: Stronger = more opaque, Weaker = more transparent
+//   - Value Area Box: Shaded region containing 70% of volume (VAH to VAL)
+//
+// Level Types (toggleable):
+//   - POC: Point of Control - peak volume price (always shown if enabled)
+//   - VAH/VAL: Value Area High/Low - 70% volume boundaries
+//   - HVN: High Volume Nodes - local volume peaks (strong S/R)
+//   - LVN: Low Volume Nodes - low volume valleys (weak S/R, usually hidden)
+//
+// ============================================================================
+
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/CoreMath/1 as math_lib
 import redshad0ww/RegimeDetection/2 as regime_lib

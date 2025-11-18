@@ -21,6 +21,50 @@ indicator("S/R Algo 3: Multi-Timeframe Confluence", shorttitle="S/R A3 MTF Confl
 // - Look-ahead bias removed from performance tracking
 // ============================================================================
 
+// ============================= LABEL DOCUMENTATION ==========================
+//
+// WHAT THE LABELS MEAN:
+//
+// Format: "[Type] [Strength] ([Timeframes]TF)"
+//   Example: "R 80 (3TF)" or "S 65 (2TF)"
+//
+// Type (abbreviated):
+//   - S = Support (swing lows across timeframes)
+//   - R = Resistance (swing highs across timeframes)
+//
+// Strength Score (0-100): Timeframe-weighted calculation
+//   - Base: Weighted average across participating timeframes
+//   - TF weights: Current=1x, Higher1=2x, Higher2=3x
+//   - Touch tracking: +15% per additional touch (historical)
+//   - Rejection analysis: +20% for confirmed rejections
+//   - Volume confluence: +30-50% if aligned with POC/VAH/VAL (requires Algo 1)
+//   - Time decay: Recent levels boosted (1.0 + 50/age × 0.01)
+//   - Regime adjustment: Multiplied by regime factor
+//
+// Timeframe Count (1-3TF):
+//   - 3TF = Level appears on all 3 timeframes (strongest - 75-85% accuracy)
+//   - 2TF = Level appears on 2 timeframes (moderate - 65-75% accuracy)
+//   - 1TF = Level appears on 1 timeframe (weak - 55-65% accuracy)
+//   - Higher TF count = institutional agreement = stronger level
+//
+// Auto-detected Timeframes (customizable):
+//   - Current chart timeframe + 2 higher timeframes
+//   - Example: 1H chart → [1H, 4H, D] or [5min, 15min, 1H]
+//   - Spacing designed to avoid redundancy while capturing structure
+//
+// Visual Cues:
+//   - Label Style: Up arrow (Support) or Down arrow (Resistance)
+//   - Line Width: Thicker = more timeframes (3TF widest)
+//   - Color Intensity: Stronger = more opaque
+//   - Tooltip: Shows touches, rejections, rejection rate, age
+//
+// Volume Integration (optional):
+//   - Enable in settings + add "S/R Algo 1: Volume Profile" to chart
+//   - Levels aligning with POC/VAH/VAL get 30-50% strength boost
+//   - Combines institutional timeframe structure + volume footprints
+//
+// ============================================================================
+
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/CoreMath/1 as math_lib
 import redshad0ww/RegimeDetection/2 as regime_lib

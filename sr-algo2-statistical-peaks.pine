@@ -9,6 +9,43 @@ indicator("S/R Algo 2: Statistical Peak/Trough Detection", shorttitle="S/R A2 St
 // Target Accuracy: 70-80% for near-term S/R
 // ============================================================================
 
+// ============================= LABEL DOCUMENTATION ==========================
+//
+// WHAT THE LABELS MEAN:
+//
+// Format: "[Type] [Strength] ⭐[Confluence]"
+//   Example: "R 72 ⭐3" or "S 85 ⭐2"
+//
+// Type (abbreviated):
+//   - S = Support (clustered swing lows)
+//   - R = Resistance (clustered swing highs)
+//
+// Strength Score (0-100): Multi-factor calculation
+//   - Base: Number of swing points clustered at this level
+//   - Temporal decay: Recent swings weighted higher (half-life = 120 bars)
+//   - Volume weighting: High-volume touches count more (sqrt dampening)
+//   - Regime adjustment: ×1.20 in low vol, ×0.80 in high vol
+//   - Distance penalty: Levels far from price reduced (if enabled)
+//
+// Confluence Stars ⭐ (0-3+): Alignment with other indicators
+//   - Each star = alignment with one confluence type:
+//     • Fibonacci retracement level (23.6%, 38.2%, 50%, 61.8%, 78.6%)
+//     • Major moving average (20, 50, 100, 200 SMA/EMA)
+//     • Psychological round number ($100, $250, $500, $1000 magnitudes)
+//   - No stars = standalone level (still valid)
+//   - ⭐1 = single confluence (moderate boost)
+//   - ⭐2 = double confluence (strong boost)
+//   - ⭐3+ = triple+ confluence (very strong boost)
+//   - Confluence uses multiplicative boost (amplifies strong levels more)
+//
+// Visual Cues:
+//   - Label Style: Up arrow (Support) or Down arrow (Resistance)
+//   - Line Color: Green (Support), Red (Resistance)
+//   - Color Intensity: Stronger = more opaque
+//   - Zone Display: Optional shaded boxes instead of lines
+//
+// ============================================================================
+
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/CoreMath/1 as math_lib
 import redshad0ww/RegimeDetection/2 as regime_lib
