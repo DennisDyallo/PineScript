@@ -574,6 +574,7 @@ if barstate.islast
 
 // ============================= LEVEL EXPORTS FOR ENSEMBLE ==================
 // Plot top 5 levels for import into sr-ensemble-v2 via input.source()
+// Sorted by: 1) Timeframe count (3>2>1), 2) Proximity to current price
 
 var float level1Export = na
 var float level2Export = na
@@ -582,11 +583,47 @@ var float level4Export = na
 var float level5Export = na
 
 if barstate.islast and array.size(mtfLevels) > 0
-    level1Export := array.size(mtfLevels) > 0 ? array.get(mtfLevels, 0).price : na
-    level2Export := array.size(mtfLevels) > 1 ? array.get(mtfLevels, 1).price : na
-    level3Export := array.size(mtfLevels) > 2 ? array.get(mtfLevels, 2).price : na
-    level4Export := array.size(mtfLevels) > 3 ? array.get(mtfLevels, 3).price : na
-    level5Export := array.size(mtfLevels) > 4 ? array.get(mtfLevels, 4).price : na
+    // Create copy for sorting (preserve original for visualization)
+    var array<MTFLevel> sortedForExport = array.new<MTFLevel>()
+    array.clear(sortedForExport)
+
+    // Copy all levels
+    for i = 0 to array.size(mtfLevels) - 1
+        array.push(sortedForExport, array.get(mtfLevels, i))
+
+    // Bubble sort: Prioritize by TF count, then by proximity to current price
+    sortSize = array.size(sortedForExport)
+    if sortSize > 1
+        for i = 0 to sortSize - 2
+            for j = i + 1 to sortSize - 1
+                if i >= 0 and i < sortSize and j >= 0 and j < sortSize
+                    levelA = array.get(sortedForExport, i)
+                    levelB = array.get(sortedForExport, j)
+
+                    // Calculate percentage distance from current price
+                    distA = math.abs(levelA.price - close) / close
+                    distB = math.abs(levelB.price - close) / close
+
+                    // Swap if B is better than A
+                    shouldSwap = false
+
+                    // Primary: Higher timeframe count wins
+                    if levelB.timeframeCount > levelA.timeframeCount
+                        shouldSwap := true
+                    // Secondary: Same TF count, closer to price wins
+                    else if levelB.timeframeCount == levelA.timeframeCount and distB < distA
+                        shouldSwap := true
+
+                    if shouldSwap
+                        array.set(sortedForExport, i, levelB)
+                        array.set(sortedForExport, j, levelA)
+
+    // Export top 5 from sorted list
+    level1Export := array.size(sortedForExport) > 0 ? array.get(sortedForExport, 0).price : na
+    level2Export := array.size(sortedForExport) > 1 ? array.get(sortedForExport, 1).price : na
+    level3Export := array.size(sortedForExport) > 2 ? array.get(sortedForExport, 2).price : na
+    level4Export := array.size(sortedForExport) > 3 ? array.get(sortedForExport, 3).price : na
+    level5Export := array.size(sortedForExport) > 4 ? array.get(sortedForExport, 4).price : na
 
 // Plot levels (invisible, for import only)
 plot(level1Export, "MTF Level 1", display=display.none)

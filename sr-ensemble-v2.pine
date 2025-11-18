@@ -300,19 +300,19 @@ if enableMTF and barstate.isconfirmed
         // IMPORT MODE: Use levels from standalone sr-algo3-mtf-confluence indicator
         // Imported levels already have proper MTF analysis, touch tracking, etc.
 
-        var array<float> importedLevels = array.new_float()
-        array.clear(importedLevels)
+        array<float> importedLevels = array.new_float()
 
-        // Collect all non-close values (close = unset source)
-        if mtfLevel1Source != close
+        // Collect all valid (non-na) imported levels
+        // Note: na values mean algo3 has fewer than 5 levels to export
+        if not na(mtfLevel1Source)
             array.push(importedLevels, mtfLevel1Source)
-        if mtfLevel2Source != close
+        if not na(mtfLevel2Source)
             array.push(importedLevels, mtfLevel2Source)
-        if mtfLevel3Source != close
+        if not na(mtfLevel3Source)
             array.push(importedLevels, mtfLevel3Source)
-        if mtfLevel4Source != close
+        if not na(mtfLevel4Source)
             array.push(importedLevels, mtfLevel4Source)
-        if mtfLevel5Source != close
+        if not na(mtfLevel5Source)
             array.push(importedLevels, mtfLevel5Source)
 
         // Convert to SRLevel objects with high strength (imported = high quality)
