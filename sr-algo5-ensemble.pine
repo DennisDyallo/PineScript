@@ -244,16 +244,19 @@ if enableAlgo2 and (barstate.isconfirmed or barstate.islast)
 
     // Cluster swing points
     if array.size(swingPrices) > 0
+        // Ensure all arrays have consistent size - use minimum size for safety
+        minSize = math.min(math.min(array.size(swingPrices), array.size(swingTypes)),
+                          array.size(swingBars))
+
         var array<bool> visited = array.new_bool()
         array.clear(visited)
-        for i = 0 to array.size(swingPrices) - 1
+        for i = 0 to minSize - 1
             array.push(visited, false)
 
         epsilon = 0.015  // 1.5% clustering tolerance
 
-        for i = 0 to array.size(swingPrices) - 1
-            if i < array.size(visited) and i < array.size(swingTypes) and
-               i < array.size(swingBars) and not array.get(visited, i)
+        for i = 0 to minSize - 1
+            if not array.get(visited, i)
                 var array<float> cluster = array.new_float()
                 var array<int> clusterBars = array.new_int()
                 array.clear(cluster)
@@ -265,10 +268,8 @@ if enableAlgo2 and (barstate.isconfirmed or barstate.islast)
                 array.set(visited, i, true)
 
                 // Find neighbors
-                for j = i + 1 to array.size(swingPrices) - 1
-                    if j < array.size(visited) and j < array.size(swingPrices) and
-                       j < array.size(swingTypes) and j < array.size(swingBars) and
-                       not array.get(visited, j)
+                for j = i + 1 to minSize - 1
+                    if not array.get(visited, j)
                         otherPrice = array.get(swingPrices, j)
                         distance = math.abs(currentPrice - otherPrice) / currentPrice
 
@@ -348,14 +349,17 @@ if enableAlgo3 and (barstate.isconfirmed or barstate.islast)
 
     // Merge and score (simplified clustering)
     if array.size(mtfPrices) > 0
+        // Ensure all arrays have consistent size - use minimum size for safety
+        minSize = math.min(math.min(array.size(mtfPrices), array.size(mtfTypes)),
+                          array.size(mtfTimeframeWeights))
+
         var array<bool> mtfVisited = array.new_bool()
         array.clear(mtfVisited)
-        for i = 0 to array.size(mtfPrices) - 1
+        for i = 0 to minSize - 1
             array.push(mtfVisited, false)
 
-        for i = 0 to array.size(mtfPrices) - 1
-            if i < array.size(mtfVisited) and i < array.size(mtfTypes) and
-               i < array.size(mtfTimeframeWeights) and not array.get(mtfVisited, i)
+        for i = 0 to minSize - 1
+            if not array.get(mtfVisited, i)
                 var array<float> mtfCluster = array.new_float()
                 var array<int> mtfWeights = array.new_int()
                 array.clear(mtfCluster)
@@ -367,10 +371,8 @@ if enableAlgo3 and (barstate.isconfirmed or barstate.islast)
                 array.set(mtfVisited, i, true)
 
                 // Find nearby levels
-                for j = i + 1 to array.size(mtfPrices) - 1
-                    if j < array.size(mtfVisited) and j < array.size(mtfPrices) and
-                       j < array.size(mtfTypes) and j < array.size(mtfTimeframeWeights) and
-                       not array.get(mtfVisited, j)
+                for j = i + 1 to minSize - 1
+                    if not array.get(mtfVisited, j)
                         otherPrice = array.get(mtfPrices, j)
                         distance = math.abs(currentPrice - otherPrice) / currentPrice
 
@@ -446,16 +448,19 @@ if enableAlgo4 and (barstate.isconfirmed or barstate.islast)
 
     // Cluster rejections
     if array.size(rejectionPrices) > 0
+        // Ensure all arrays have consistent size - use minimum size for safety
+        minSize = math.min(math.min(array.size(rejectionPrices), array.size(rejectionTypes)),
+                          array.size(rejectionStrengths))
+
         var array<bool> obVisited = array.new_bool()
         array.clear(obVisited)
-        for i = 0 to array.size(rejectionPrices) - 1
+        for i = 0 to minSize - 1
             array.push(obVisited, false)
 
         epsilon = currentATR > 0 ? math.min(0.03, (currentATR / close) * 1.5) : 0.015
 
-        for i = 0 to array.size(rejectionPrices) - 1
-            if i < array.size(obVisited) and i < array.size(rejectionTypes) and
-               i < array.size(rejectionStrengths) and not array.get(obVisited, i)
+        for i = 0 to minSize - 1
+            if not array.get(obVisited, i)
                 var array<float> obCluster = array.new_float()
                 var array<float> obStrengths = array.new_float()
                 array.clear(obCluster)
@@ -467,10 +472,8 @@ if enableAlgo4 and (barstate.isconfirmed or barstate.islast)
                 array.set(obVisited, i, true)
 
                 // Find neighbors
-                for j = i + 1 to array.size(rejectionPrices) - 1
-                    if j < array.size(obVisited) and j < array.size(rejectionPrices) and
-                       j < array.size(rejectionTypes) and j < array.size(rejectionStrengths) and
-                       not array.get(obVisited, j)
+                for j = i + 1 to minSize - 1
+                    if not array.get(obVisited, j)
                         otherPrice = array.get(rejectionPrices, j)
                         distance = math.abs(currentPrice - otherPrice) / currentPrice
 
@@ -524,13 +527,15 @@ if barstate.isconfirmed or barstate.islast
 
     // Merge nearby levels
     if array.size(allAlgoLevels) > 0
+        levelCount = array.size(allAlgoLevels)
+
         var array<bool> mergeVisited = array.new_bool()
         array.clear(mergeVisited)
-        for i = 0 to array.size(allAlgoLevels) - 1
+        for i = 0 to levelCount - 1
             array.push(mergeVisited, false)
 
-        for i = 0 to array.size(allAlgoLevels) - 1
-            if i < array.size(mergeVisited) and not array.get(mergeVisited, i)
+        for i = 0 to levelCount - 1
+            if not array.get(mergeVisited, i)
                 var array<AlgoLevel> mergeCluster = array.new<AlgoLevel>()
                 array.clear(mergeCluster)
 
@@ -539,9 +544,8 @@ if barstate.isconfirmed or barstate.islast
                 array.set(mergeVisited, i, true)
 
                 // Find nearby levels from other algos
-                for j = i + 1 to array.size(allAlgoLevels) - 1
-                    if j < array.size(mergeVisited) and j < array.size(allAlgoLevels) and
-                       not array.get(mergeVisited, j)
+                for j = i + 1 to levelCount - 1
+                    if not array.get(mergeVisited, j)
                         otherLevel = array.get(allAlgoLevels, j)
                         distance = level_lib.calculateDistance(currentLevel.price, otherLevel.price)
 
