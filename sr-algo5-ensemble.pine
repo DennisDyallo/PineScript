@@ -1,11 +1,13 @@
 //@version=5
-indicator("S/R Ensemble Detector", shorttitle="S/R A5 Ensemble", overlay=true, max_lines_count=100, max_labels_count=30)
+indicator("S/R Ensemble Detector (ALPHA v1.1)", shorttitle="S/R A5 Ensemble", overlay=true, max_lines_count=100, max_labels_count=30)
 
 // ============================================================================
-// ENSEMBLE S/R DETECTOR - REWRITTEN FROM SCRATCH
+// ⚠️ ALPHA STATUS: THEORETICAL DESIGN - EMPIRICAL VALIDATION PENDING ⚠️
 // ============================================================================
-// Combines 4 algorithms with defensive array handling and simplified logic
-// Research weights: VP(30%) + MTF(25%) + Statistical(20%) + OrderBook(15%)
+// Combines 4 S/R algorithms with weighted voting and agreement-based filtering
+// DEFAULT: Equal weights 25% each (DeMiguel 2009 - safest without testing)
+// OPTIONAL: Original weights VP(35%) MTF(30%) STAT(20%) OB(15%) (UNVALIDATED)
+// ⚠️ ZERO empirical testing - Use paper trading before risking capital
 // ============================================================================
 
 // ============================= LABEL DOCUMENTATION ==========================
@@ -15,7 +17,8 @@ indicator("S/R Ensemble Detector", shorttitle="S/R A5 Ensemble", overlay=true, m
 // Primary Number: Ensemble Strength Score (0-100)
 //   - Weighted combination of all contributing algorithms
 //   - Higher = stronger S/R level
-//   - Weights: VP(35%) + MTF(30%) + Statistical(20%) + OrderBook(15%)
+//   - Weights (Equal - DEFAULT): 25% each (DeMiguel 2009 - RECOMMENDED)
+//   - Weights (Original - OPTIONAL): VP(35%) MTF(30%) STAT(20%) OB(15%) (UNVALIDATED)
 //   - Agreement bonuses: 4/4 (+15%), 3/4 (+10%), 2/4 (+5%)
 //
 // Sources (in parentheses): Which algorithms detected this level
@@ -68,6 +71,7 @@ maxLevels = input.int(15, "Max Levels", minval=5, maxval=30, group="Ensemble")
 minAgreement = input.int(2, "Min Agreement", minval=1, maxval=4, group="Ensemble")
 minStrength = input.int(50, "Min Strength", minval=30, maxval=90, group="Ensemble")
 mergeTolerance = input.float(0.015, "Merge Tolerance %", minval=0.005, maxval=0.03, step=0.005, group="Ensemble")
+useEqualWeights = input.bool(true, "Use Equal Weights (RECOMMENDED)", group="Ensemble", tooltip="TRUE = Equal weighting 25% each (DeMiguel 2009 - safest without empirical testing)\nFALSE = Original weights VP:35% MTF:30% STAT:20% OB:15% (UNVALIDATED)")
 
 // Algorithm toggles
 enableVP = input.bool(true, "Volume Profile", group="Algorithms")
@@ -556,13 +560,20 @@ if barstate.isconfirmed
                     // Calculate ensemble score
                     agreement = (vpScore > 0 ? 1 : 0) + (statScore > 0 ? 1 : 0) + (mtfScore > 0 ? 1 : 0) + (obScore > 0 ? 1 : 0)
 
-                    // Fixed weights (now sum to 1.0): VP(35%) + MTF(30%) + Statistical(20%) + OrderBook(15%)
-                    totalWeight = (vpScore > 0 ? 0.35 : 0.0) + (statScore > 0 ? 0.20 : 0.0) +
-                                 (mtfScore > 0 ? 0.30 : 0.0) + (obScore > 0 ? 0.15 : 0.0)
+                    // Algorithm weights based on user toggle
+                    // Equal weights (RECOMMENDED for ALPHA - DeMiguel et al. 2009)
+                    // Original weights (UNVALIDATED - requires empirical testing)
+                    vpWeight = useEqualWeights ? 0.25 : 0.35
+                    statWeight = useEqualWeights ? 0.25 : 0.20
+                    mtfWeight = useEqualWeights ? 0.25 : 0.30
+                    obWeight = useEqualWeights ? 0.25 : 0.15
+
+                    totalWeight = (vpScore > 0 ? vpWeight : 0.0) + (statScore > 0 ? statWeight : 0.0) +
+                                 (mtfScore > 0 ? mtfWeight : 0.0) + (obScore > 0 ? obWeight : 0.0)
 
                     // Normalize weights based on participating algorithms
                     baseScore = totalWeight > 0 ?
-                               ((vpScore * 0.35) + (statScore * 0.20) + (mtfScore * 0.30) + (obScore * 0.15)) / totalWeight * 100 :
+                               ((vpScore * vpWeight) + (statScore * statWeight) + (mtfScore * mtfWeight) + (obScore * obWeight)) / totalWeight :
                                0.0
 
                     // Agreement bonus (less aggressive)
