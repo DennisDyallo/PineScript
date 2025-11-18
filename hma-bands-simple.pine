@@ -77,10 +77,16 @@ hmaCrossDown = ta.crossunder(hmaFastLine, hmaSlowLine)
 // ============================= VISUALIZATION ================================
 
 // Plot bands (brighter colors for dark mode)
-plot(hmaFastLine, "HMA 21", color=color.new(#2196F3, 0), linewidth=2)  // Bright blue
-plot(showSlowHMA ? hmaSlowLine : na, "HMA 55", color=color.new(#9C27B0, 20), linewidth=1)  // Bright purple
+p1 = plot(hmaFastLine, "HMA 21", color=color.new(#2196F3, 0), linewidth=2)  // Bright blue
+p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA 55", color=color.new(#9C27B0, 20), linewidth=1)  // Bright purple
 plot(upperBand, "Upper Band", color=color.new(#00E676, 0), linewidth=2)  // Bright green
 plot(lowerBand, "Lower Band", color=color.new(#FF5252, 0), linewidth=2)  // Bright red
+
+// Fill between HMA 21 and HMA 55
+hmaFillColor = hmaFastLine > hmaSlowLine ?
+     color.new(#2196F3, 85) :  // Blue when fast > slow (bullish)
+     color.new(#9C27B0, 85)    // Purple when slow > fast (bearish)
+fill(p1, p2, hmaFillColor, title="HMA Fill")
 
 // Band fill (more visible on dark backgrounds)
 fillColor = showFill ?
