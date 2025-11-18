@@ -265,7 +265,9 @@ if enableAlgo2 and (barstate.isconfirmed or barstate.islast)
 
                 // Find neighbors
                 for j = i + 1 to array.size(swingPrices) - 1
-                    if j < array.size(visited) and not array.get(visited, j)
+                    if j < array.size(visited) and j < array.size(swingPrices) and
+                       j < array.size(swingTypes) and j < array.size(swingBars) and
+                       not array.get(visited, j)
                         otherPrice = array.get(swingPrices, j)
                         distance = math.abs(currentPrice - otherPrice) / currentPrice
 
@@ -364,7 +366,9 @@ if enableAlgo3 and (barstate.isconfirmed or barstate.islast)
 
                 // Find nearby levels
                 for j = i + 1 to array.size(mtfPrices) - 1
-                    if j < array.size(mtfVisited) and not array.get(mtfVisited, j)
+                    if j < array.size(mtfVisited) and j < array.size(mtfPrices) and
+                       j < array.size(mtfTypes) and j < array.size(mtfTimeframeWeights) and
+                       not array.get(mtfVisited, j)
                         otherPrice = array.get(mtfPrices, j)
                         distance = math.abs(currentPrice - otherPrice) / currentPrice
 
@@ -461,7 +465,9 @@ if enableAlgo4 and (barstate.isconfirmed or barstate.islast)
 
                 // Find neighbors
                 for j = i + 1 to array.size(rejectionPrices) - 1
-                    if j < array.size(obVisited) and not array.get(obVisited, j)
+                    if j < array.size(obVisited) and j < array.size(rejectionPrices) and
+                       j < array.size(rejectionTypes) and j < array.size(rejectionStrengths) and
+                       not array.get(obVisited, j)
                         otherPrice = array.get(rejectionPrices, j)
                         distance = math.abs(currentPrice - otherPrice) / currentPrice
 
@@ -531,7 +537,8 @@ if barstate.isconfirmed or barstate.islast
 
                 // Find nearby levels from other algos
                 for j = i + 1 to array.size(allAlgoLevels) - 1
-                    if j < array.size(mergeVisited) and not array.get(mergeVisited, j)
+                    if j < array.size(mergeVisited) and j < array.size(allAlgoLevels) and
+                       not array.get(mergeVisited, j)
                         otherLevel = array.get(allAlgoLevels, j)
                         distance = level_lib.calculateDistance(currentLevel.price, otherLevel.price)
 
@@ -626,7 +633,8 @@ if barstate.isconfirmed or barstate.islast
         if array.size(ensembleLevels) > 1
             for i = 0 to array.size(ensembleLevels) - 2
                 for j = i + 1 to array.size(ensembleLevels) - 1
-                    if j < array.size(ensembleLevels) and array.get(ensembleLevels, j).ensembleStrength > array.get(ensembleLevels, i).ensembleStrength
+                    if i < array.size(ensembleLevels) and j < array.size(ensembleLevels) and
+                       array.get(ensembleLevels, j).ensembleStrength > array.get(ensembleLevels, i).ensembleStrength
                         temp = array.get(ensembleLevels, i)
                         array.set(ensembleLevels, i, array.get(ensembleLevels, j))
                         array.set(ensembleLevels, j, temp)
