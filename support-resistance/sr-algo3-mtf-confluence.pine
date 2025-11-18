@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="MKN: S/R Algo 3: Multi-Timeframe Confluence", shorttitle="MKN: S/R A3 MTF Confluence", overlay=true, max_lines_count=50, max_labels_count=20)
+indicator("MKN: S/R Algo 3: Multi-Timeframe Confluence", shorttitle="MKN: S/R A3 MTF Confluence", overlay=true, max_lines_count=50, max_labels_count=20)
 
 // ============================================================================
 // S/R ALGORITHM 3: MULTI-TIMEFRAME CONFLUENCE DETECTOR

@@ -195,13 +195,15 @@ hmaCrossDown = ta.crossunder(hmaFastLine, hmaSlowLine)
 
 // ============================= VISUALIZATION ================================
 
-// Plot bands (fancy gradient-inspired colors)
-p1 = plot(hmaFastLine, "HMA Fast", color=color.new(#00D9FF, 0), linewidth=2)  // Cyan blue
-p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA Slow", color=color.new(#B57EDC, 15), linewidth=1)  // Lavender purple
+// Plot bands with inverted colors on crossover (fancy gradient-inspired colors)
+hmaFastColor = hmaFastLine > hmaSlowLine ? color.new(#00D9FF, 0) : color.new(#B57EDC, 0)  // Cyan when above, Lavender when below
+hmaSlowColor = hmaFastLine > hmaSlowLine ? color.new(#B57EDC, 15) : color.new(#00D9FF, 15)  // Lavender when below fast, Cyan when above
+p1 = plot(hmaFastLine, "HMA Fast", color=hmaFastColor, linewidth=2)
+p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA Slow", color=hmaSlowColor, linewidth=1)
 plot(upperBand, "Upper Band", color=color.new(#00FFA3, 70), linewidth=1)  // Mint green
 plot(lowerBand, "Lower Band", color=color.new(#FF6B9D, 30), linewidth=1)  // Pink red
 
-// Fill between HMA 55 and HMA 55 (gradient effect)
+// Fill between HMA 55 and HMA 89 (gradient effect - unchanged)
 hmaFillColor = hmaFastLine > hmaSlowLine ?
      color.new(#00D9FF, 40) :  // Cyan when fast > slow (bullish) - 60% opacity
      color.new(#B57EDC, 40)    // Lavender when slow > fast (bearish) - 60% opacity
