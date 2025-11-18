@@ -56,6 +56,10 @@ import redshad0ww/RegimeDetection/3 as regime_lib
 hmaFast = input.int(55, "Fast HMA", minval=5, maxval=100, group="HMA Bands")
 hmaSlow = input.int(89, "Slow HMA", minval=20, maxval=200, group="HMA Bands")
 stdDevMult = input.float(1.8, "StdDev Multiplier", minval=0.5, maxval=5.0, step=0.1, group="HMA Bands")
+bandCalcMethod = input.string("percentage", "Band Calculation",
+     options=["absolute", "percentage"],
+     tooltip="Absolute: Standard deviation in price units (asymmetric on log charts)\nPercentage: Standard deviation of returns (symmetric on log charts)\n\nRecommended: Percentage for logarithmic charts, either works for linear charts",
+     group="HMA Bands")
 
 // Volume Parameters
 volPeriod = input.int(20, "Volume MA Period", minval=10, maxval=50, group="Volume")
@@ -101,9 +105,27 @@ hmaSlowLine = ta.hma(close, hmaSlow)
 
 // Bollinger Bands around Fast HMA
 basis = hmaFastLine
-stdDev = ta.stdev(close, hmaFast) * stdDevMult
-upperBand = basis + stdDev
-lowerBand = basis - stdDev
+
+// Calculate bands based on selected method
+float upperBand = na
+float lowerBand = na
+
+if bandCalcMethod == "percentage"
+    // Percentage-based: TRUE logarithmic symmetry
+    // For log charts: log(upper) - log(basis) = log(basis) - log(lower)
+    // This means: upper/basis = basis/lower
+    stdDev = ta.stdev(close, hmaFast) * stdDevMult
+    stdDevPct = stdDev / basis  // Convert to percentage multiplier
+
+    // Apply symmetric logarithmic formula
+    upperBand := basis * (1 + stdDevPct)
+    lowerBand := basis / (1 + stdDevPct)  // Division for log symmetry!
+else
+    // Absolute: Traditional standard deviation in price units
+    // This creates symmetric bands on linear charts
+    stdDev = ta.stdev(close, hmaFast) * stdDevMult
+    upperBand := basis + stdDev
+    lowerBand := basis - stdDev
 
 // Band state
 bandWidth = upperBand - lowerBand
@@ -202,13 +224,12 @@ fill(p1, p2, hmaFillColor, title="HMA Fill")
 
 // Band fill (more visible on dark backgrounds)
 fillColor = showFill ?
-     (bullish ? color.new(#00E676, 90) :  // Green with 90% transparency
-      bearish ? color.new(#FF5252, 90) :  // Red with 90% transparency
-      color.new(color.gray, 95)) : na
-fill(plot(upperBand, display=display.none), plot(lowerBand, display=display.none), fillColor)
+     (bullish ? color.new(#00E676, 85) :  // Green with 85% transparency
+      bearish ? color.new(#FF5252, 85) :  // Red with 85% transparency
+      color.new(color.gray, 85)) : na
 
 // Background (subtle)
-bgcolor(bullish ? color.new(#00E676, 95) : bearish ? color.new(#FF5252, 95) : na)
+bgcolor(bullish ? color.new(#00E676, 85) : bearish ? color.new(#FF5252, 85) : na)
 
 // Yellow bar detection: Volume spike (current or previous 2 bars) + close inside/crossing HMA band
 // No consecutive yellows allowed - must exit band and re-enter to reset
