@@ -94,7 +94,7 @@ indicator(title="MKN: Institutional Algo 4: Ensemble Detector", shorttitle="IA4-
 // ============================================================================
 import redshad0ww/CoreMath/3 as math_lib
 import redshad0ww/RegimeDetection/3 as regime_lib
-import redshad0ww/VolumeAnalysis/3 as vol_lib
+import redshad0ww/VolumeAnalysis/4 as vol_lib
 import redshad0ww/TrendDetection/2 as trend_lib
 import redshad0ww/MTFUtils/3 as mtf_lib
 
