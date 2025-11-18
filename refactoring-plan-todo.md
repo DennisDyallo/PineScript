@@ -154,21 +154,30 @@ This checkpoint allows rollback if needed.
 - [x] Git commit: "refactor: Migrate institutional-algo3 to shared libraries"
 
 ### Institutional-Algo4: Ensemble
-**Before**: 473 lines | **After**: 257 lines | **Saved**: 216 lines (46% reduction!)
+**Before**: 473 lines (simplified embedded) | **After**: 542 lines (full implementation) | **Change**: +69 lines
 
-- [x] Complete rewrite using all 5 libraries
-- [x] Replace entire Algo1 embedded implementation with library calls (115→25 lines)
-- [x] Replace entire Algo2 embedded implementation with library calls (110→20 lines)
-- [x] Replace entire Algo3 embedded implementation with library calls (125→30 lines)
-- [x] Streamline ensemble logic and visualization
+**Note**: Enhanced to full documentation-compliant implementation with:
+- Algorithm 1: 5 distinct patterns + graduated trend filtering (±10-50%)
+- Algorithm 2: Building patterns + price action scoring + regime scoring
+- Algorithm 3: Proper Bayesian posterior + regime-specific likelihoods
+- Pattern consensus voting (Accumulation/Distribution/Mixed)
+
+- [x] Enhanced with full algorithm implementations using all 5 libraries
+- [x] Implemented 5-pattern detection in Algo1 (vs 3 basic in simplified version)
+- [x] Added regime scoring component to Algo2
+- [x] Implemented proper Bayesian posterior calculation in Algo3
+- [x] Added pattern consensus voting mechanism
 - [x] Test in Pine Editor - verify compilation
 - [x] Update title/shorttitle to match naming convention ("IA4-Ensemble")
-- [x] Git commit: "refactor: Complete overhaul of institutional-algo4 ensemble"
+- [x] Removed V1/V2 variants, kept only ultimate version
+- [x] Git commit: "refactor: Finalize ensemble as primary algo4 version"
 
 ### Phase 2 Completion
 - [x] All 4 institutional indicators refactored successfully
 - [x] All indicators compile without errors
-- [x] **Total savings**: 1,511 → 1,258 lines (253 lines saved, 16.7% reduction)
+- [x] **Algo1-3 Total**: 1,038 → 1,001 lines (37 lines saved, cleaner with libraries)
+- [x] **Algo4**: Enhanced from simplified (257 lines) to full (542 lines) for documentation compliance
+- [x] All algorithms use 5 core utility libraries (single source of truth)
 - [x] Calculation parity maintained across all refactors
 - [x] All commits pushed to remote
 
