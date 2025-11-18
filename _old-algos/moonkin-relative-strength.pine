@@ -1,5 +1,5 @@
 //@version=5
-indicator("Relative Strength", shorttitle="RS")
+indicator(title="MKN: Relative Strength", shorttitle="RS")
 
 var bool isCrypto = syminfo.type == "crypto" or str.match(syminfo.tickerid, "USDT|USD|BTC|ETH|WETH") != ""
 var string cryptoSymbol = input.string("CRYPTOCAP:TOTAL", title="Crypto Comparative Symbol")

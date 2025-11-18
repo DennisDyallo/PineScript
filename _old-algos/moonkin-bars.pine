@@ -2,7 +2,7 @@
 // © redshad0ww
 
 //@version=5
-indicator("Moonkin Bars", overlay = true, precision = 2)
+indicator(title="MKN: Moonkin Bars", overlay = true, precision = 2)
 import redshad0ww/MoonkinLibs/4 as moonkinLibs
 
 var inputIndicator = input.string("mfi", options = ["mfi", "rsi"])

@@ -1,5 +1,5 @@
 //@version=5
-indicator("S/R Ensemble Detector (ALPHA v1.1)", shorttitle="S/R A5 Ensemble", overlay=true, max_lines_count=100, max_labels_count=30)
+indicator(title="MKN: S/R Ensemble Detector (ALPHA v1.1)", shorttitle="S/R A5 Ensemble", overlay=true, max_lines_count=100, max_labels_count=30)
 
 // ============================================================================
 // ⚠️ ALPHA STATUS: THEORETICAL DESIGN - EMPIRICAL VALIDATION PENDING ⚠️

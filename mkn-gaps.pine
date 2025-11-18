@@ -1,5 +1,5 @@
 //@version=6
-indicator("MKN: Gaps", overlay = true, max_boxes_count = 500)
+indicator(title="MKN: MKN: Gaps", overlay = true, max_boxes_count = 500)
 
 // ============================================================================
 // BODY-ONLY GAP DETECTION

@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="Moonkin RSI's", shorttitle="Moonkin RSI", precision=2)
+indicator(title='MKN: "Moonkin RSI's", shorttitle="Moonkin RSI", precision=2)
 
 //Debug
 var global_print_counter = array.new_int()

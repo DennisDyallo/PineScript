@@ -1,5 +1,5 @@
 //@version=5
-indicator("Moonkin Mix", shorttitle = "Moonkin Mix", overlay = true)
+indicator(title="MKN: Moonkin Mix", shorttitle = "Moonkin Mix", overlay = true)
 
 var global_print_counter = array.new_int()
 array.push(global_print_counter, 0)

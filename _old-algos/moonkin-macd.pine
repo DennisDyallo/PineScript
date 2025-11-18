@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="Moonkin MACD", shorttitle="Moonkin MACD")
+indicator(title='MKN: "Moonkin MACD", shorttitle="Moonkin MACD")
 // Getting inputs
 fast_length = input(title="Fast Length", defval=12)
 slow_length = input(title="Slow Length", defval=26)

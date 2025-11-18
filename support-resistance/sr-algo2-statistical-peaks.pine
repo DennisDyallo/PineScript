@@ -1,5 +1,5 @@
 //@version=5
-indicator("S/R Algo 2: Statistical Peak/Trough Detection", shorttitle="S/R A2 Statistical", overlay=true, max_lines_count=50, max_labels_count=20)
+indicator(title="MKN: S/R Algo 2: Statistical Peak/Trough Detection", shorttitle="S/R A2 Statistical", overlay=true, max_lines_count=50, max_labels_count=20)
 
 // ============================================================================
 // S/R ALGORITHM 2: STATISTICAL PEAK/TROUGH DETECTION WITH CLUSTERING
