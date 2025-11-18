@@ -117,6 +117,11 @@ regimeMultiplier = regimeData.multiplier
 currentATR = ta.atr(atrLength)
 avgATR = ta.sma(ta.atr(atrLength), atrLookback)
 
+// Pre-calculate series functions (called on every bar for consistency)
+highestPrice = ta.highest(high, vpLookback)
+lowestPrice = ta.lowest(low, vpLookback)
+avgVolume = ta.sma(volume, 20)
+
 // ============================= ALGORITHM 1: VOLUME PROFILE ==================
 // Detect S/R levels from volume distribution (30% weight in ensemble)
 
@@ -126,8 +131,6 @@ if enableAlgo1 and (barstate.isconfirmed or barstate.islast)
     array.clear(algo1Levels)
 
     // Build volume profile (simplified from sr-algo1)
-    highestPrice = ta.highest(high, vpLookback)
-    lowestPrice = ta.lowest(low, vpLookback)
     priceRange = highestPrice - lowestPrice
 
     if priceRange > 0
@@ -401,7 +404,7 @@ if enableAlgo4 and (barstate.isconfirmed or barstate.islast)
     array.clear(rejectionStrengths)
     array.clear(rejectionTypes)
 
-    avgVolume = ta.sma(volume, 20)
+    // avgVolume already pre-calculated outside conditional scope
 
     for i = 0 to math.min(obLookback, bar_index)
         barHigh = high[i]
