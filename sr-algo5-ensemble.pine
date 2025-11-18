@@ -500,16 +500,16 @@ if barstate.isconfirmed or barstate.islast
     var array<AlgoLevel> allAlgoLevels = array.new<AlgoLevel>()
     array.clear(allAlgoLevels)
 
-    if enableAlgo1
+    if enableAlgo1 and array.size(algo1Levels) > 0
         for i = 0 to array.size(algo1Levels) - 1
             array.push(allAlgoLevels, array.get(algo1Levels, i))
-    if enableAlgo2
+    if enableAlgo2 and array.size(algo2Levels) > 0
         for i = 0 to array.size(algo2Levels) - 1
             array.push(allAlgoLevels, array.get(algo2Levels, i))
-    if enableAlgo3
+    if enableAlgo3 and array.size(algo3Levels) > 0
         for i = 0 to array.size(algo3Levels) - 1
             array.push(allAlgoLevels, array.get(algo3Levels, i))
-    if enableAlgo4
+    if enableAlgo4 and array.size(algo4Levels) > 0
         for i = 0 to array.size(algo4Levels) - 1
             array.push(allAlgoLevels, array.get(algo4Levels, i))
 
