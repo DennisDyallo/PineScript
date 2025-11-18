@@ -1,10 +1,10 @@
 //@version=5
-indicator(title="Institutional Algo 4 v3: Ultimate Ensemble", shorttitle="IA4-v3", overlay=false, precision=0, max_bars_back=500)
+indicator(title="Institutional Algo 4: Ensemble Detector", shorttitle="IA4-Ensemble", overlay=false, precision=0, max_bars_back=500)
 
 // ============================================================================
-// ULTIMATE ENSEMBLE - V2 + OLD REGIME FEATURES
+// ULTIMATE ENSEMBLE - FULL IMPLEMENTATION
 // ============================================================================
-// Combines V2's enhancements with OLD's regime-specific refinements:
+// Combines sophisticated pattern detection with regime-specific refinements:
 // 1. Algorithm 1: Full 5 patterns + graduated trend filtering (from V2)
 // 2. Algorithm 2: Building patterns + REGIME SCORING (from OLD)
 // 3. Algorithm 3: Proper Bayesian + REGIME-SPECIFIC LIKELIHOODS (from OLD)
@@ -458,7 +458,7 @@ if showTable
          border_color=color.new(color.gray, 50), frame_width=1, frame_color=color.new(color.gray, 50))
 
     // Header
-    table.cell(ensembleTable, 0, 0, "Ultimate Ensemble v3", bgcolor=color.new(color.blue, 70),
+    table.cell(ensembleTable, 0, 0, "Institutional Ensemble", bgcolor=color.new(color.blue, 70),
          text_color=color.white, text_size=size.normal)
     table.merge_cells(ensembleTable, 0, 0, 1, 0)
 
@@ -526,11 +526,11 @@ if showTable
 
 // Alert 1: Ensemble score crosses above threshold
 if ta.crossover(ensembleScore, scoreThreshold)
-    alert("ENSEMBLE v3: Institutional " + institutionalType + " detected on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Confidence: " + confidence + ")", alert.freq_once_per_bar_close)
+    alert("ENSEMBLE: Institutional " + institutionalType + " detected on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Confidence: " + confidence + ")", alert.freq_once_per_bar_close)
 
 // Alert 2: All 3 algorithms agree (high confidence)
 if agreement == 3 and isInstitutional and not (isInstitutional[1] and agreement[1] == 3)
-    alert("VERY HIGH CONFIDENCE v3: All 3 algorithms detect institutional activity on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Type: " + institutionalType + ", Pattern Consensus: " + consensusPattern + ")", alert.freq_once_per_bar_close)
+    alert("VERY HIGH CONFIDENCE: All 3 algorithms detect institutional activity on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Type: " + institutionalType + ", Pattern Consensus: " + consensusPattern + ")", alert.freq_once_per_bar_close)
 
 // Alert 3: Signal ended
 if ta.crossunder(ensembleScore, scoreThreshold)
@@ -539,4 +539,4 @@ if ta.crossunder(ensembleScore, scoreThreshold)
 // Alert 4: Accumulation consensus with high agreement
 if agreement >= 2 and consensusPattern == "Accumulation" and isInstitutional and
      not (isInstitutional[1] and agreement[1] >= 2 and consensusPattern[1] == "Accumulation")
-    alert("ACCUMULATION CONSENSUS v3: " + str.tostring(accumVotes) + "/3 algorithms detect accumulation on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Regime: " + regimeName3 + ")", alert.freq_once_per_bar_close)
+    alert("ACCUMULATION CONSENSUS: " + str.tostring(accumVotes) + "/3 algorithms detect accumulation on " + syminfo.ticker + " (Score: " + str.tostring(ensembleScore, "#") + ", Regime: " + regimeName3 + ")", alert.freq_once_per_bar_close)
