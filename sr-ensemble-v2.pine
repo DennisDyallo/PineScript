@@ -82,64 +82,61 @@ currentATR = ta.atr(atrLen)
 
 // ============================= HELPER FUNCTIONS =============================
 
-// Safe array builder - ensures all parallel arrays stay in sync
-f_addLevel(array<float> prices, array<string> types, array<float> strengths, float price, string type, float strength) =>
-    array.push(prices, price)
-    array.push(types, type)
-    array.push(strengths, strength)
+// Object-based clustering - NO parallel arrays = NO synchronization bugs!
+// Takes array of SRLevel objects, returns clustered array of SRLevel objects
+f_clusterLevels(array<SRLevel> levels, float tolerance) =>
+    var array<SRLevel> result = array.new<SRLevel>()
+    array.clear(result)
 
-// Safe clustering - returns clustered levels with guaranteed array consistency
-f_cluster(array<float> prices, array<string> types, array<float> strengths, float tolerance) =>
-    var array<float> clusteredPrices = array.new_float()
-    var array<string> clusteredTypes = array.new_string()
-    var array<float> clusteredStrengths = array.new_float()
+    levelCount = array.size(levels)
 
-    array.clear(clusteredPrices)
-    array.clear(clusteredTypes)
-    array.clear(clusteredStrengths)
-
-    arraySize = array.size(prices)
-
-    if arraySize > 0
-        // Ensure all arrays have same size (defensive check)
-        minSize = math.min(math.min(arraySize, array.size(types)), array.size(strengths))
-
+    if levelCount == 0
+        result  // Return empty array immediately
+    else
         var array<bool> visited = array.new_bool()
         array.clear(visited)
-        for i = 0 to minSize - 1
+
+        // Initialize visited array
+        for i = 0 to levelCount - 1
             array.push(visited, false)
 
-        for i = 0 to minSize - 1
+        // Cluster levels
+        for i = 0 to levelCount - 1
             if not array.get(visited, i)
+                currentLevel = array.get(levels, i)
+
                 // Start cluster
-                clusterPrice = array.get(prices, i)
-                clusterType = array.get(types, i)
-                clusterStrength = array.get(strengths, i)
+                clusterPrice = currentLevel.price
+                clusterType = currentLevel.type
+                clusterStrength = currentLevel.strength
+                clusterSource = currentLevel.source
                 clusterCount = 1
 
                 array.set(visited, i, true)
 
-                // Find neighbors within tolerance
-                for j = i + 1 to minSize - 1
+                // Find neighbors (same type only)
+                for j = i + 1 to levelCount - 1
                     if not array.get(visited, j)
-                        otherPrice = array.get(prices, j)
-                        otherType = array.get(types, j)
+                        otherLevel = array.get(levels, j)
+                        distance = math.abs(clusterPrice - otherLevel.price) / clusterPrice
 
-                        distance = math.abs(clusterPrice - otherPrice) / clusterPrice
-
-                        if distance <= tolerance and clusterType == otherType
-                            // Merge into cluster
-                            clusterPrice := (clusterPrice * clusterCount + otherPrice) / (clusterCount + 1)
-                            clusterStrength := math.max(clusterStrength, array.get(strengths, j))
+                        if distance <= tolerance and clusterType == otherLevel.type
+                            // Weighted average by strength
+                            totalStrength = clusterStrength * clusterCount + otherLevel.strength
+                            clusterPrice := (clusterPrice * clusterCount + otherLevel.price) / (clusterCount + 1)
                             clusterCount += 1
+                            clusterStrength := totalStrength / clusterCount
+
+                            // Merge sources
+                            if not str.contains(clusterSource, otherLevel.source)
+                                clusterSource += "+" + otherLevel.source
+
                             array.set(visited, j, true)
 
                 // Add clustered level
-                array.push(clusteredPrices, clusterPrice)
-                array.push(clusteredTypes, clusterType)
-                array.push(clusteredStrengths, clusterStrength)
+                array.push(result, SRLevel.new(clusterPrice, clusterType, clusterStrength, clusterSource))
 
-    [clusteredPrices, clusteredTypes, clusteredStrengths]
+        result
 
 // ============================= ALGORITHM 1: VOLUME PROFILE ==================
 
@@ -207,13 +204,9 @@ var array<SRLevel> statLevels = array.new<SRLevel>()
 if enableStat and (barstate.isconfirmed or barstate.islast)
     array.clear(statLevels)
 
-    var array<float> swingPrices = array.new_float()
-    var array<string> swingTypes = array.new_string()
-    var array<float> swingStrengths = array.new_float()
-
-    array.clear(swingPrices)
-    array.clear(swingTypes)
-    array.clear(swingStrengths)
+    // Build array of SRLevel objects directly (no parallel arrays!)
+    var array<SRLevel> rawSwingLevels = array.new<SRLevel>()
+    array.clear(rawSwingLevels)
 
     // Find pivots
     if bar_index >= statSwing * 2
@@ -230,7 +223,9 @@ if enableStat and (barstate.isconfirmed or barstate.islast)
                 barsAgo = i
                 decayFactor = math.pow(statDecay, barsAgo)
                 strength = 50.0 * decayFactor * (useRegime ? regimeMult : 1.0)
-                f_addLevel(swingPrices, swingTypes, swingStrengths, high[bar_index - i], "Resistance", strength)
+                // Create SRLevel object directly
+                level = SRLevel.new(high[bar_index - i], "Resistance", strength, "STAT")
+                array.push(rawSwingLevels, level)
 
             // Pivot low
             isPL = true
@@ -244,21 +239,18 @@ if enableStat and (barstate.isconfirmed or barstate.islast)
                 barsAgo = i
                 decayFactor = math.pow(statDecay, barsAgo)
                 strength = 50.0 * decayFactor * (useRegime ? regimeMult : 1.0)
-                f_addLevel(swingPrices, swingTypes, swingStrengths, low[bar_index - i], "Support", strength)
+                // Create SRLevel object directly
+                level = SRLevel.new(low[bar_index - i], "Support", strength, "STAT")
+                array.push(rawSwingLevels, level)
 
-    // Cluster swings
-    [clusteredPrices, clusteredTypes, clusteredStrengths] = f_cluster(swingPrices, swingTypes, swingStrengths, 0.015)
+    // Cluster using object-based function (no parallel arrays!)
+    statLevels := f_clusterLevels(rawSwingLevels, 0.015)
 
-    // Convert to levels
-    clusterSize = array.size(clusteredPrices)
-    if clusterSize > 0
-        for i = 0 to clusterSize - 1
-            price = array.get(clusteredPrices, i)
-            type = array.get(clusteredTypes, i)
-            strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
-
-            level = SRLevel.new(price, type, strength, "STAT")
-            array.push(statLevels, level)
+    // Apply min/max strength constraints
+    if array.size(statLevels) > 0
+        for i = 0 to array.size(statLevels) - 1
+            level = array.get(statLevels, i)
+            level.strength := math.max(40, math.min(100, level.strength))
 
 // ============================= ALGORITHM 3: MTF =========================== ==
 
@@ -267,13 +259,9 @@ var array<SRLevel> mtfLevels = array.new<SRLevel>()
 if enableMTF and (barstate.isconfirmed or barstate.islast)
     array.clear(mtfLevels)
 
-    var array<float> mtfPrices = array.new_float()
-    var array<string> mtfTypes = array.new_string()
-    var array<float> mtfStrengths = array.new_float()
-
-    array.clear(mtfPrices)
-    array.clear(mtfTypes)
-    array.clear(mtfStrengths)
+    // Build array of SRLevel objects directly
+    var array<SRLevel> rawMtfLevels = array.new<SRLevel>()
+    array.clear(rawMtfLevels)
 
     // Current TF pivots
     if bar_index >= mtfSwing * 2
@@ -288,7 +276,8 @@ if enableMTF and (barstate.isconfirmed or barstate.islast)
 
             if isPH
                 strength = 50.0 * (useRegime ? regimeMult : 1.0)
-                f_addLevel(mtfPrices, mtfTypes, mtfStrengths, high[bar_index - i], "Resistance", strength)
+                level = SRLevel.new(high[bar_index - i], "Resistance", strength, "MTF")
+                array.push(rawMtfLevels, level)
 
             // Pivot low
             isPL = true
@@ -300,21 +289,17 @@ if enableMTF and (barstate.isconfirmed or barstate.islast)
 
             if isPL
                 strength = 50.0 * (useRegime ? regimeMult : 1.0)
-                f_addLevel(mtfPrices, mtfTypes, mtfStrengths, low[bar_index - i], "Support", strength)
+                level = SRLevel.new(low[bar_index - i], "Support", strength, "MTF")
+                array.push(rawMtfLevels, level)
 
-    // Cluster
-    [clusteredPrices, clusteredTypes, clusteredStrengths] = f_cluster(mtfPrices, mtfTypes, mtfStrengths, 0.015)
+    // Cluster using object-based function
+    mtfLevels := f_clusterLevels(rawMtfLevels, 0.015)
 
-    // Convert to levels
-    clusterSize = array.size(clusteredPrices)
-    if clusterSize > 0
-        for i = 0 to clusterSize - 1
-            price = array.get(clusteredPrices, i)
-            type = array.get(clusteredTypes, i)
-            strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
-
-            level = SRLevel.new(price, type, strength, "MTF")
-            array.push(mtfLevels, level)
+    // Apply min/max strength constraints
+    if array.size(mtfLevels) > 0
+        for i = 0 to array.size(mtfLevels) - 1
+            level = array.get(mtfLevels, i)
+            level.strength := math.max(40, math.min(100, level.strength))
 
 // ============================= ALGORITHM 4: ORDER BOOK ======================
 
@@ -323,13 +308,9 @@ var array<SRLevel> obLevels = array.new<SRLevel>()
 if enableOB and (barstate.isconfirmed or barstate.islast)
     array.clear(obLevels)
 
-    var array<float> rejPrices = array.new_float()
-    var array<string> rejTypes = array.new_string()
-    var array<float> rejStrengths = array.new_float()
-
-    array.clear(rejPrices)
-    array.clear(rejTypes)
-    array.clear(rejStrengths)
+    // Build array of SRLevel objects directly
+    var array<SRLevel> rawRejectionLevels = array.new<SRLevel>()
+    array.clear(rawRejectionLevels)
 
     avgVol = ta.sma(volume, 20)
 
@@ -351,27 +332,24 @@ if enableOB and (barstate.isconfirmed or barstate.islast)
             // Upper wick rejection
             if upperWick / bodySize > obMinWick
                 strength = 40.0 + (upperWick / bodySize) * 20
-                f_addLevel(rejPrices, rejTypes, rejStrengths, barHigh, "Resistance", strength)
+                level = SRLevel.new(barHigh, "Resistance", strength, "OB")
+                array.push(rawRejectionLevels, level)
 
             // Lower wick rejection
             if lowerWick / bodySize > obMinWick
                 strength = 40.0 + (lowerWick / bodySize) * 20
-                f_addLevel(rejPrices, rejTypes, rejStrengths, barLow, "Support", strength)
+                level = SRLevel.new(barLow, "Support", strength, "OB")
+                array.push(rawRejectionLevels, level)
 
-    // Cluster
+    // Cluster using object-based function
     epsilon = currentATR > 0 ? math.min(0.03, (currentATR / close) * 1.5) : 0.015
-    [clusteredPrices, clusteredTypes, clusteredStrengths] = f_cluster(rejPrices, rejTypes, rejStrengths, epsilon)
+    obLevels := f_clusterLevels(rawRejectionLevels, epsilon)
 
-    // Convert to levels
-    clusterSize = array.size(clusteredPrices)
-    if clusterSize > 0
-        for i = 0 to clusterSize - 1
-            price = array.get(clusteredPrices, i)
-            type = array.get(clusteredTypes, i)
-            strength = math.max(40, math.min(100, array.get(clusteredStrengths, i)))
-
-            level = SRLevel.new(price, type, strength, "OB")
-            array.push(obLevels, level)
+    // Apply min/max strength constraints
+    if array.size(obLevels) > 0
+        for i = 0 to array.size(obLevels) - 1
+            level = array.get(obLevels, i)
+            level.strength := math.max(40, math.min(100, level.strength))
 
 // ============================= ENSEMBLE MERGING =============================
 
