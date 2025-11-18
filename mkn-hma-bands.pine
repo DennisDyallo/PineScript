@@ -4,8 +4,11 @@ indicator("MKN: HMA Bands Exit Strategy", shorttitle="MKN: HMA Bands", overlay=t
 // ============================================================================
 // HMA BANDS WITH VOLUME-CONFIRMED EXITS
 // ============================================================================
-// Simple, clean implementation without external library dependencies
+// Uses standardized volume thresholds from VolumeAnalysis library v1.1
 // ============================================================================
+
+// ============================= LIBRARY IMPORTS ==============================
+import redshad0ww/VolumeAnalysis/3 as vol_lib
 
 // ============================= INPUTS =======================================
 
