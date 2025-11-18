@@ -528,6 +528,29 @@ if barstate.islast
     table.cell(infoTable, 1, 9, str.tostring(mergeTolerance * 100, "#.#") + "%",
                text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
 
+// ============================= LEVEL EXPORTS FOR ENSEMBLE ==================
+// Plot top 5 levels for import into sr-ensemble-v2 via input.source()
+
+var float level1Export = na
+var float level2Export = na
+var float level3Export = na
+var float level4Export = na
+var float level5Export = na
+
+if barstate.islast and array.size(mtfLevels) > 0
+    level1Export := array.size(mtfLevels) > 0 ? array.get(mtfLevels, 0).price : na
+    level2Export := array.size(mtfLevels) > 1 ? array.get(mtfLevels, 1).price : na
+    level3Export := array.size(mtfLevels) > 2 ? array.get(mtfLevels, 2).price : na
+    level4Export := array.size(mtfLevels) > 3 ? array.get(mtfLevels, 3).price : na
+    level5Export := array.size(mtfLevels) > 4 ? array.get(mtfLevels, 4).price : na
+
+// Plot levels (invisible, for import only)
+plot(level1Export, "MTF Level 1", display=display.none)
+plot(level2Export, "MTF Level 2", display=display.none)
+plot(level3Export, "MTF Level 3", display=display.none)
+plot(level4Export, "MTF Level 4", display=display.none)
+plot(level5Export, "MTF Level 5", display=display.none)
+
 // ============================= ALERTS =======================================
 
 // Alert when price near 3-timeframe confluence level
