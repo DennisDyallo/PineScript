@@ -1,5 +1,5 @@
 //@version=5
-indicator("S/R Algo 4: Order Book Reconstruction", shorttitle="S/R Order Book", overlay=true, max_lines_count=50, max_labels_count=20)
+indicator("S/R Algo 4: Order Book Reconstruction", shorttitle="S/R A4 Order Book", overlay=true, max_lines_count=50, max_labels_count=20)
 
 // ============================================================================
 // S/R ALGORITHM 4: ORDER BOOK RECONSTRUCTION (EXPERIMENTAL)
@@ -25,7 +25,7 @@ indicator("S/R Algo 4: Order Book Reconstruction", shorttitle="S/R Order Book", 
 
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/CoreMath/1 as math_lib
-import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/RegimeDetection/2 as regime_lib
 import redshad0ww/LevelUtils/1 as level_lib
 
 // ============================= INPUTS =======================================
