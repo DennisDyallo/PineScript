@@ -10,8 +10,8 @@ indicator("HMA Bands Exit Strategy", shorttitle="HMA Bands", overlay=true)
 // ============================= INPUTS =======================================
 
 // HMA Parameters
-hmaFast = input.int(21, "Fast HMA", minval=5, maxval=100, group="HMA Bands")
-hmaSlow = input.int(55, "Slow HMA", minval=20, maxval=200, group="HMA Bands")
+hmaFast = input.int(55, "Fast HMA", minval=5, maxval=100, group="HMA Bands")
+hmaSlow = input.int(89, "Slow HMA", minval=20, maxval=200, group="HMA Bands")
 stdDevMult = input.float(2.0, "StdDev Multiplier", minval=0.5, maxval=5.0, step=0.1, group="HMA Bands")
 
 // Volume Parameters
@@ -22,6 +22,7 @@ volSpikeStrong = input.float(2.0, "Strong Volume Spike (200%)", minval=1.5, maxv
 // Display
 showFill = input.bool(true, "Show Band Fill", group="Display")
 showSlowHMA = input.bool(true, "Show Slow HMA", group="Display")
+colorBars = input.bool(true, "Color Bars by HMA", group="Display")
 enableAlerts = input.bool(true, "Enable Alerts", group="Display")
 
 // ============================= HMA CALCULATION ==============================
@@ -62,13 +63,13 @@ isStrongVolSpike = volRatio >= volSpikeStrong
 bullish = hmaFastLine > hmaSlowLine and hmaFastLine > hmaFastLine[1] and isExpanding
 bearish = hmaFastLine < hmaSlowLine and hmaFastLine < hmaFastLine[1] and isExpanding
 
-// Exit signals
-longExit = close > upperBand and isVolSpike and barstate.isconfirmed
-shortExit = close < lowerBand and isVolSpike and barstate.isconfirmed
+// Buy/Sell signals
+sellSignal = close > upperBand and isVolSpike and barstate.isconfirmed
+buySignal = close < lowerBand and isVolSpike and barstate.isconfirmed
 
-// Strong exits
-longExitStrong = close > upperBand and isStrongVolSpike and barstate.isconfirmed
-shortExitStrong = close < lowerBand and isStrongVolSpike and barstate.isconfirmed
+// Strong buy/sell signals
+sellSignalStrong = close > upperBand and isStrongVolSpike and barstate.isconfirmed
+buySignalStrong = close < lowerBand and isStrongVolSpike and barstate.isconfirmed
 
 // HMA crossovers
 hmaCrossUp = ta.crossover(hmaFastLine, hmaSlowLine)
@@ -76,41 +77,44 @@ hmaCrossDown = ta.crossunder(hmaFastLine, hmaSlowLine)
 
 // ============================= VISUALIZATION ================================
 
-// Plot bands (brighter colors for dark mode)
-p1 = plot(hmaFastLine, "HMA 21", color=color.new(#2196F3, 0), linewidth=2)  // Bright blue
-p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA 55", color=color.new(#9C27B0, 20), linewidth=1)  // Bright purple
-plot(upperBand, "Upper Band", color=color.new(#00E676, 0), linewidth=2)  // Bright green
-plot(lowerBand, "Lower Band", color=color.new(#FF5252, 0), linewidth=2)  // Bright red
+// Plot bands (fancy gradient-inspired colors)
+p1 = plot(hmaFastLine, "HMA 55", color=color.new(#00D9FF, 0), linewidth=2)  // Cyan blue
+p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA 55", color=color.new(#B57EDC, 15), linewidth=1)  // Lavender purple
+plot(upperBand, "Upper Band", color=color.new(#00FFA3, 0), linewidth=2)  // Mint green
+plot(lowerBand, "Lower Band", color=color.new(#FF6B9D, 0), linewidth=2)  // Pink red
 
-// Fill between HMA 21 and HMA 55
+// Fill between HMA 55 and HMA 55 (gradient effect)
 hmaFillColor = hmaFastLine > hmaSlowLine ?
-     color.new(#2196F3, 85) :  // Blue when fast > slow (bullish)
-     color.new(#9C27B0, 85)    // Purple when slow > fast (bearish)
+     color.new(#00D9FF, 40) :  // Cyan when fast > slow (bullish) - 60% opacity
+     color.new(#B57EDC, 40)    // Lavender when slow > fast (bearish) - 60% opacity
 fill(p1, p2, hmaFillColor, title="HMA Fill")
 
 // Band fill (more visible on dark backgrounds)
 fillColor = showFill ?
-     (bullish ? color.new(#00E676, 85) :  // Green with 85% transparency
-      bearish ? color.new(#FF5252, 85) :  // Red with 85% transparency
-      color.new(color.gray, 90)) : na
+     (bullish ? color.new(#00E676, 90) :  // Green with 90% transparency
+      bearish ? color.new(#FF5252, 90) :  // Red with 90% transparency
+      color.new(color.gray, 95)) : na
 fill(plot(upperBand, display=display.none), plot(lowerBand, display=display.none), fillColor)
 
-// Background (more visible - 92% transparency instead of 97%)
-bgcolor(bullish ? color.new(#00E676, 92) : bearish ? color.new(#FF5252, 92) : na)
+// Background (subtle)
+bgcolor(bullish ? color.new(#00E676, 95) : bearish ? color.new(#FF5252, 95) : na)
 
-// Exit signals (bright colors for visibility)
-plotshape(longExitStrong, "Long Exit (Strong)", shape.triangledown, location.abovebar,
-     color.new(#FF5252, 0), size=size.normal, text="EXIT")
-plotshape(shortExitStrong, "Short Exit (Strong)", shape.triangleup, location.belowbar,
-     color.new(#00E676, 0), size=size.normal, text="EXIT")
-plotshape(longExit and not longExitStrong, "Long Exit", shape.triangledown, location.abovebar,
-     color.new(#FF5252, 0), size=size.small, text="EXIT")
-plotshape(shortExit and not shortExitStrong, "Short Exit", shape.triangleup, location.belowbar,
-     color.new(#00E676, 0), size=size.small, text="EXIT")
+// Bar coloring based on price vs HMA
+barcolor(colorBars ? (close > hmaFastLine ? color.new(#00E676, 50) : color.new(#FF5252, 50)) : na, title="HMA Bar Colors")
+
+// Buy/Sell signals (bright colors for visibility)
+plotshape(sellSignalStrong, "Sell Signal (Strong)", shape.triangledown, location.abovebar,
+     color.new(#FF5252, 0), size=size.normal, text="SELL")
+plotshape(buySignalStrong, "Buy Signal (Strong)", shape.triangleup, location.belowbar,
+     color.new(#00E676, 0), size=size.normal, text="BUY")
+plotshape(sellSignal and not sellSignalStrong, "Sell Signal", shape.triangledown, location.abovebar,
+     color.new(#FF5252, 0), size=size.small, text="SELL")
+plotshape(buySignal and not buySignalStrong, "Buy Signal", shape.triangleup, location.belowbar,
+     color.new(#00E676, 0), size=size.small, text="BUY")
 
 // Crossovers (bright colors)
 plotshape(hmaCrossUp, "Bullish Cross", shape.circle, location.belowbar,
-     color.new(#2196F3, 0), size=size.tiny)
+     color.new(#5596F3, 0), size=size.tiny)
 plotshape(hmaCrossDown, "Bearish Cross", shape.circle, location.abovebar,
      color.new(#FF9800, 0), size=size.tiny)
 
@@ -150,16 +154,16 @@ if barstate.islast
 
 // ============================= ALERTS =======================================
 
-if longExit and enableAlerts
+if sellSignal and enableAlerts
     volStr = str.tostring(volRatio, "#.00") + "x"
-    alert("EXIT LONG - " + syminfo.ticker + " above upper band, volume: " + volStr, alert.freq_once_per_bar_close)
+    alert("SELL SIGNAL - " + syminfo.ticker + " above upper band, volume: " + volStr, alert.freq_once_per_bar_close)
 
-if shortExit and enableAlerts
+if buySignal and enableAlerts
     volStr = str.tostring(volRatio, "#.00") + "x"
-    alert("EXIT SHORT - " + syminfo.ticker + " below lower band, volume: " + volStr, alert.freq_once_per_bar_close)
+    alert("BUY SIGNAL - " + syminfo.ticker + " below lower band, volume: " + volStr, alert.freq_once_per_bar_close)
 
 if hmaCrossUp and enableAlerts
-    alert("BULLISH CROSS - " + syminfo.ticker + " HMA 21 crossed above HMA 55", alert.freq_once_per_bar_close)
+    alert("BULLISH CROSS - " + syminfo.ticker + " HMA 55 crossed above HMA 55", alert.freq_once_per_bar_close)
 
 if hmaCrossDown and enableAlerts
-    alert("BEARISH CROSS - " + syminfo.ticker + " HMA 21 crossed below HMA 55", alert.freq_once_per_bar_close)
+    alert("BEARISH CROSS - " + syminfo.ticker + " HMA 55 crossed below HMA 55", alert.freq_once_per_bar_close)
