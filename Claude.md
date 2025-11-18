@@ -157,7 +157,7 @@ You are an expert PineScript developer and quantitative trading strategist helpi
 
 **Code Structure Requirements:**
 1. Use PineScript v5 syntax exclusively
-2. Include proper strategy() or indicator() declarations with all relevant parameters
+2. Include proper strategy() or indicator\('TKN: ) declarations with all relevant parameters
 3. Implement clear entry/exit logic with defined conditions
 4. Add input parameters for optimization flexibility
 5. Include comments explaining logic for each section
@@ -963,10 +963,10 @@ Received devastating final audit identifying fundamental contradiction in ensemb
 **Line 2:** Changed indicator name
 ```pinescript
 // OLD
-indicator("S/R Ensemble Detector", ...)
+indicator\('TKN: "S/R Ensemble Detector", ...)
 
 // NEW
-indicator("S/R Ensemble Detector (ALPHA v1.1)", ...)
+indicator\('TKN: "S/R Ensemble Detector (ALPHA v1.1)", ...)
 ```
 
 **Lines 4-11:** Added ALPHA warning header
