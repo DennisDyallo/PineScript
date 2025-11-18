@@ -573,7 +573,7 @@ if barstate.islast
                text_color=color.white, bgcolor=color.new(color.gray, 80), text_size=size.tiny)
 
 // ============================= LEVEL EXPORTS FOR ENSEMBLE ==================
-// Plot top 5 levels for import into sr-ensemble-v2 via input.source()
+// Plot top 10 levels for import into sr-ensemble-v2 via input.source()
 // Sorted by: 1) Timeframe count (3>2>1), 2) Proximity to current price
 
 var float level1Export = na
@@ -581,6 +581,11 @@ var float level2Export = na
 var float level3Export = na
 var float level4Export = na
 var float level5Export = na
+var float level6Export = na
+var float level7Export = na
+var float level8Export = na
+var float level9Export = na
+var float level10Export = na
 
 if barstate.islast and array.size(mtfLevels) > 0
     // Create copy for sorting (preserve original for visualization)
@@ -618,12 +623,17 @@ if barstate.islast and array.size(mtfLevels) > 0
                         array.set(sortedForExport, i, levelB)
                         array.set(sortedForExport, j, levelA)
 
-    // Export top 5 from sorted list
+    // Export top 10 from sorted list
     level1Export := array.size(sortedForExport) > 0 ? array.get(sortedForExport, 0).price : na
     level2Export := array.size(sortedForExport) > 1 ? array.get(sortedForExport, 1).price : na
     level3Export := array.size(sortedForExport) > 2 ? array.get(sortedForExport, 2).price : na
     level4Export := array.size(sortedForExport) > 3 ? array.get(sortedForExport, 3).price : na
     level5Export := array.size(sortedForExport) > 4 ? array.get(sortedForExport, 4).price : na
+    level6Export := array.size(sortedForExport) > 5 ? array.get(sortedForExport, 5).price : na
+    level7Export := array.size(sortedForExport) > 6 ? array.get(sortedForExport, 6).price : na
+    level8Export := array.size(sortedForExport) > 7 ? array.get(sortedForExport, 7).price : na
+    level9Export := array.size(sortedForExport) > 8 ? array.get(sortedForExport, 8).price : na
+    level10Export := array.size(sortedForExport) > 9 ? array.get(sortedForExport, 9).price : na
 
 // Plot levels (invisible, for import only)
 plot(level1Export, "MTF Level 1", display=display.none)
@@ -631,6 +641,11 @@ plot(level2Export, "MTF Level 2", display=display.none)
 plot(level3Export, "MTF Level 3", display=display.none)
 plot(level4Export, "MTF Level 4", display=display.none)
 plot(level5Export, "MTF Level 5", display=display.none)
+plot(level6Export, "MTF Level 6", display=display.none)
+plot(level7Export, "MTF Level 7", display=display.none)
+plot(level8Export, "MTF Level 8", display=display.none)
+plot(level9Export, "MTF Level 9", display=display.none)
+plot(level10Export, "MTF Level 10", display=display.none)
 
 // ============================= ALERTS =======================================
 

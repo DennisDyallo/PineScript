@@ -92,6 +92,11 @@ mtfLevel2Source = input.source(close, "MTF Level 2", group="MTF Import")
 mtfLevel3Source = input.source(close, "MTF Level 3", group="MTF Import")
 mtfLevel4Source = input.source(close, "MTF Level 4", group="MTF Import")
 mtfLevel5Source = input.source(close, "MTF Level 5", group="MTF Import")
+mtfLevel6Source = input.source(close, "MTF Level 6", group="MTF Import")
+mtfLevel7Source = input.source(close, "MTF Level 7", group="MTF Import")
+mtfLevel8Source = input.source(close, "MTF Level 8", group="MTF Import")
+mtfLevel9Source = input.source(close, "MTF Level 9", group="MTF Import")
+mtfLevel10Source = input.source(close, "MTF Level 10", group="MTF Import")
 
 // Fallback: Simple pivot detection (if not using import)
 mtfSwing = input.int(8, "MTF Swing (fallback)", minval=5, maxval=20, group="MTF Fallback", tooltip="Only used if MTF Import is disabled")
@@ -300,29 +305,71 @@ if enableMTF and barstate.isconfirmed
         // IMPORT MODE: Use levels from standalone sr-algo3-mtf-confluence indicator
         // Imported levels already have proper MTF analysis, touch tracking, etc.
 
-        array<float> importedLevels = array.new_float()
+        // Collect all valid (non-na) imported levels with graduated strength
+        // Levels 1-3: strength=85 (likely 3-TF, highest quality)
+        // Levels 4-7: strength=70 (likely 2-TF, medium quality)
+        // Levels 8-10: strength=60 (likely 1-TF, higher relevance)
 
-        // Collect all valid (non-na) imported levels
-        // Note: na values mean algo3 has fewer than 5 levels to export
+        // Process each level with position-based strength
         if not na(mtfLevel1Source)
-            array.push(importedLevels, mtfLevel1Source)
-        if not na(mtfLevel2Source)
-            array.push(importedLevels, mtfLevel2Source)
-        if not na(mtfLevel3Source)
-            array.push(importedLevels, mtfLevel3Source)
-        if not na(mtfLevel4Source)
-            array.push(importedLevels, mtfLevel4Source)
-        if not na(mtfLevel5Source)
-            array.push(importedLevels, mtfLevel5Source)
+            levelType = mtfLevel1Source > close ? "Resistance" : "Support"
+            strength = 85.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel1Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
 
-        // Convert to SRLevel objects with high strength (imported = high quality)
-        if array.size(importedLevels) > 0
-            for i = 0 to array.size(importedLevels) - 1
-                price = array.get(importedLevels, i)
-                levelType = price > close ? "Resistance" : "Support"
-                strength = 75.0 * (useRegime ? regimeMult : 1.0)  // High strength for imported MTF levels
-                level = SRLevel.new(price, levelType, strength, "MTF")
-                array.push(mtfLevels, level)
+        if not na(mtfLevel2Source)
+            levelType = mtfLevel2Source > close ? "Resistance" : "Support"
+            strength = 85.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel2Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel3Source)
+            levelType = mtfLevel3Source > close ? "Resistance" : "Support"
+            strength = 85.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel3Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel4Source)
+            levelType = mtfLevel4Source > close ? "Resistance" : "Support"
+            strength = 70.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel4Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel5Source)
+            levelType = mtfLevel5Source > close ? "Resistance" : "Support"
+            strength = 70.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel5Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel6Source)
+            levelType = mtfLevel6Source > close ? "Resistance" : "Support"
+            strength = 70.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel6Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel7Source)
+            levelType = mtfLevel7Source > close ? "Resistance" : "Support"
+            strength = 70.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel7Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel8Source)
+            levelType = mtfLevel8Source > close ? "Resistance" : "Support"
+            strength = 60.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel8Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel9Source)
+            levelType = mtfLevel9Source > close ? "Resistance" : "Support"
+            strength = 60.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel9Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
+
+        if not na(mtfLevel10Source)
+            levelType = mtfLevel10Source > close ? "Resistance" : "Support"
+            strength = 60.0 * (useRegime ? regimeMult : 1.0)
+            level = SRLevel.new(mtfLevel10Source, levelType, strength, "MTF")
+            array.push(mtfLevels, level)
     else
         // FALLBACK MODE: Simple pivot detection (for standalone use)
         array<SRLevel> rawMtfLevels = array.new<SRLevel>()
