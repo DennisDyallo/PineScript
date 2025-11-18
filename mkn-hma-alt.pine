@@ -217,19 +217,47 @@ fill(plot(upperBand, display=display.none), plot(lowerBand, display=display.none
 // Background (subtle)
 bgcolor(bullish ? color.new(#00E676, 95) : bearish ? color.new(#FF5252, 95) : na)
 
-// Detect first bar entering HMA Fast/Slow band
-insideHMABand = (close >= math.min(hmaFastLine, hmaSlowLine) and close <= math.max(hmaFastLine, hmaSlowLine)) or                (open >= math.min(hmaFastLine, hmaSlowLine) and open <= math.max(hmaFastLine, hmaSlowLine))
+// Yellow bar detection: Volume spike (current or previous 2 bars) + close inside/crossing HMA band
+// No consecutive yellows allowed - must exit band and re-enter to reset
+hmaMin = math.min(hmaFastLine, hmaSlowLine)
+hmaMax = math.max(hmaFastLine, hmaSlowLine)
+hmaMinPrev = math.min(hmaFastLine[1], hmaSlowLine[1])
+hmaMaxPrev = math.max(hmaFastLine[1], hmaSlowLine[1])
 
-wasOutsideHMABand = not ((close[1] >= math.min(hmaFastLine[1], hmaSlowLine[1]) and close[1] <= math.max(hmaFastLine[1], hmaSlowLine[1])) or
-                         (open[1] >= math.min(hmaFastLine[1], hmaSlowLine[1]) and open[1] <= math.max(hmaFastLine[1], hmaSlowLine[1])))
+// Check if current close is inside HMA band
+closeInsideBand = close >= hmaMin and close <= hmaMax
 
-isFirstBarInBand = insideHMABand and wasOutsideHMABand
+// Check if close crossed to other side (was above → now inside/below, OR was below → now inside/above)
+wasAboveBand = close[1] > hmaMaxPrev
+wasBelowBand = close[1] < hmaMinPrev
+crossedToOtherSide = (wasAboveBand and close <= hmaMax) or (wasBelowBand and close >= hmaMin)
 
-// Bar coloring: Yellow for first bar entering HMA band with volume spike
+// Volume spike in current or previous 2 bars
+volSpikeInWindow = isVolSpike or isVolSpike[1] or isVolSpike[2]
+
+// Check if close is outside the band (reset condition)
+closeOutsideBand = close > hmaMax or close < hmaMin
+
+// Track reset: price was outside band since last yellow (or never had yellow yet)
+var bool hasReset = true
+
+// Yellow bar condition: (inside band OR crossed to other side) AND volume spike AND reset occurred
+isYellowBar = (closeInsideBand or crossedToOtherSide) and volSpikeInWindow and hasReset
+
+// Update reset state after calculating isYellowBar
+if closeOutsideBand
+    hasReset := true
+else if isYellowBar
+    hasReset := false  // Yellow triggered, lock until reset
+
+// Bar coloring: Yellow for crossing HMA bands with volume spike
 barcolor(colorBars ?
-     (isFirstBarInBand and isVolSpike ? color.new(color.yellow, 0) :  // Yellow for first bar in HMA band with 150%+ volume
+     (isYellowBar ? color.new(color.yellow, 0) :  // Yellow for crossing HMA bands with volume spike
       close > hmaFastLine ? color.new(#40ffa3, 0) : color.new(#ff3374, 0)) : na,
      title="HMA Bar Colors")
+
+// Yellow background vertical for yellow bars (10% transparency)
+bgcolor(isYellowBar ? color.new(color.yellow, 90) : na, title="Yellow Bar Background")
 
 // Buy/Sell signals - Basic (triangles)
 plotshape(sellSignalStrong and not sellSignalStrongEnhanced, "Sell Signal (Strong)", shape.triangledown, location.abovebar,
@@ -305,6 +333,11 @@ if barstate.islast
     table.cell(info, 1, 6, pricePos, text_color=priceColor, bgcolor=color.new(color.gray, 70), text_size=size.small)
 
 // ============================= ALERTS =======================================
+
+// Yellow bar alert
+if isYellowBar and enableAlerts
+    volStr = str.tostring(volRatio, "#.00") + "x"
+    alert("⚠ YELLOW BAR ⚠ - " + syminfo.ticker + " crossed HMA bands with volume spike (" + volStr + ") and expanding candle", alert.freq_once_per_bar_close)
 
 // Enhanced signals (S/R confluence) - highest priority
 if sellSignalStrongEnhanced and enableAlerts
