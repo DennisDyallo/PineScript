@@ -27,8 +27,8 @@ export safeDivide(float numerator, float denominator, float defaultValue = 1.0) 
 // @returns Safe range value, never below minPercent of close
 // @example safeRange(0.0001, 100, 0.001) => 0.1 (minimum enforced)
 // @example safeRange(5.0, 100, 0.001) => 5.0 (already safe)
-export safeRange(float priceRange, float close, float minPercent = 0.001) =>
-    minAllowed = close * minPercent
+export safeRange(float priceRange, float closeVal, float minPercent = 0.001) =>
+    minAllowed = closeVal * minPercent
     result = math.max(priceRange, minAllowed)
     result
 
