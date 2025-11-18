@@ -252,7 +252,8 @@ if enableAlgo2 and (barstate.isconfirmed or barstate.islast)
         epsilon = 0.015  // 1.5% clustering tolerance
 
         for i = 0 to array.size(swingPrices) - 1
-            if not array.get(visited, i)
+            if i < array.size(visited) and i < array.size(swingTypes) and
+               i < array.size(swingBars) and not array.get(visited, i)
                 var array<float> cluster = array.new_float()
                 var array<int> clusterBars = array.new_int()
                 array.clear(cluster)
@@ -353,7 +354,8 @@ if enableAlgo3 and (barstate.isconfirmed or barstate.islast)
             array.push(mtfVisited, false)
 
         for i = 0 to array.size(mtfPrices) - 1
-            if not array.get(mtfVisited, i)
+            if i < array.size(mtfVisited) and i < array.size(mtfTypes) and
+               i < array.size(mtfTimeframeWeights) and not array.get(mtfVisited, i)
                 var array<float> mtfCluster = array.new_float()
                 var array<int> mtfWeights = array.new_int()
                 array.clear(mtfCluster)
@@ -452,7 +454,8 @@ if enableAlgo4 and (barstate.isconfirmed or barstate.islast)
         epsilon = currentATR > 0 ? math.min(0.03, (currentATR / close) * 1.5) : 0.015
 
         for i = 0 to array.size(rejectionPrices) - 1
-            if not array.get(obVisited, i)
+            if i < array.size(obVisited) and i < array.size(rejectionTypes) and
+               i < array.size(rejectionStrengths) and not array.get(obVisited, i)
                 var array<float> obCluster = array.new_float()
                 var array<float> obStrengths = array.new_float()
                 array.clear(obCluster)
@@ -527,7 +530,7 @@ if barstate.isconfirmed or barstate.islast
             array.push(mergeVisited, false)
 
         for i = 0 to array.size(allAlgoLevels) - 1
-            if not array.get(mergeVisited, i)
+            if i < array.size(mergeVisited) and not array.get(mergeVisited, i)
                 var array<AlgoLevel> mergeCluster = array.new<AlgoLevel>()
                 array.clear(mergeCluster)
 
