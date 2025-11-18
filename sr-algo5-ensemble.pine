@@ -1,5 +1,5 @@
 //@version=5
-indicator("S/R Ensemble Detector V2", shorttitle="S/R Ensemble V2", overlay=true, max_lines_count=100, max_labels_count=30)
+indicator("S/R Ensemble Detector", shorttitle="S/R A5 Ensemble", overlay=true, max_lines_count=100, max_labels_count=30)
 
 // ============================================================================
 // ENSEMBLE S/R DETECTOR - REWRITTEN FROM SCRATCH
@@ -641,7 +641,7 @@ if showTable
     var table info = table.new(position.top_right, 2, 7, border_width=1)
 
     if barstate.islast or barstate.isconfirmed
-        table.cell(info, 0, 0, "S/R Ensemble V2", text_color=color.white,
+        table.cell(info, 0, 0, "S/R Ensemble", text_color=color.white,
              bgcolor=color.new(color.blue, 30), text_size=size.normal)
         table.merge_cells(info, 0, 0, 1, 0)
 
