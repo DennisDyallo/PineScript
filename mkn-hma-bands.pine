@@ -8,7 +8,7 @@ indicator(title="MKN: MKN: HMA Bands Exit Strategy", shorttitle="MKN: HMA Bands"
 // ============================================================================
 
 // ============================= LIBRARY IMPORTS ==============================
-import redshad0ww/VolumeAnalysis/3 as vol_lib
+import redshad0ww/VolumeAnalysis/4 as vol_lib
 
 // ============================= INPUTS =======================================
 
