@@ -107,7 +107,7 @@ f_clusterLevels(array<SRLevel> levels, float tolerance) =>
 
                 // Start cluster
                 clusterPrice = currentLevel.price
-                clusterType = currentLevel.type
+                clusterLevelType = currentLevel.levelType
                 clusterStrength = currentLevel.strength
                 clusterSource = currentLevel.source
                 clusterCount = 1
@@ -120,7 +120,7 @@ f_clusterLevels(array<SRLevel> levels, float tolerance) =>
                         otherLevel = array.get(levels, j)
                         distance = math.abs(clusterPrice - otherLevel.price) / clusterPrice
 
-                        if distance <= tolerance and clusterType == otherLevel.type
+                        if distance <= tolerance and clusterLevelType == otherLevel.levelType
                             // Weighted average by strength
                             totalStrength = clusterStrength * clusterCount + otherLevel.strength
                             clusterPrice := (clusterPrice * clusterCount + otherLevel.price) / (clusterCount + 1)
@@ -134,7 +134,7 @@ f_clusterLevels(array<SRLevel> levels, float tolerance) =>
                             array.set(visited, j, true)
 
                 // Add clustered level
-                array.push(result, SRLevel.new(clusterPrice, clusterType, clusterStrength, clusterSource))
+                array.push(result, SRLevel.new(clusterPrice, clusterLevelType, clusterStrength, clusterSource))
 
         result
 
