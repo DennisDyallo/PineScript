@@ -8,6 +8,35 @@ indicator("S/R Ensemble Detector V2", shorttitle="S/R Ensemble V2", overlay=true
 // Research weights: VP(30%) + MTF(25%) + Statistical(20%) + OrderBook(15%)
 // ============================================================================
 
+// ============================= LABEL DOCUMENTATION ==========================
+//
+// WHAT THE LABELS MEAN:
+//
+// Primary Number: Ensemble Strength Score (0-100)
+//   - Weighted combination of all contributing algorithms
+//   - Higher = stronger S/R level
+//   - Weights: VP(35%) + MTF(30%) + Statistical(20%) + OrderBook(15%)
+//   - Agreement bonuses: 4/4 (+15%), 3/4 (+10%), 2/4 (+5%)
+//
+// Sources (in parentheses): Which algorithms detected this level
+//   - VP   = Volume Profile algorithm
+//   - STAT = Statistical Peaks algorithm
+//   - MTF  = Multi-Timeframe algorithm
+//   - OB   = Order Book algorithm
+//
+// Examples:
+//   - "85 (VP+MTF+STAT)"     = Strength 85, 3/4 agreement
+//   - "72 (VP+STAT+MTF+OB)"  = Strength 72, perfect 4/4 agreement
+//   - "68 (MTF+STAT)"        = Strength 68, 2/4 agreement
+//
+// Visual Cues:
+//   - Label Size: Normal (3-4 algorithms) or Small (1-2 algorithms)
+//   - Label Style: Up arrow (Support) or Down arrow (Resistance)
+//   - Label Color: Matches line (green for Support, red for Resistance)
+//   - Line Width: Thicker = more agreement (3 for 4/4, 2 for 3/4, 1 for 2/4)
+//
+// ============================================================================
+
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/CoreMath/1 as math_lib
 import redshad0ww/RegimeDetection/2 as regime_lib
