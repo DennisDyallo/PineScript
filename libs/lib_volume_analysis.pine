@@ -3,9 +3,12 @@
 // @version 1.1.0 (2025-01-18)
 //
 // CHANGELOG:
-// v1.1.0: Added standardized volume threshold functions
+// v1.1.0: Added standardized volume threshold functions (2025-01-18)
+//   - VolumeThresholds type: Structured threshold data (low, medium, high)
 //   - isVolumeSpike(): Simple threshold check with default 1.5x
 //   - getVolumeTier(): Multi-tier classification (0=normal, 1=elevated, 2=high, 3=extreme)
+//   - getRegimeAdjustedThresholds(): Volatility-adaptive thresholds (±15-20% based on ATR)
+//   - getAssetAdjustedThresholds(): Asset class adjustments (crypto -15%, futures -10%)
 //   - Standard thresholds: 1.3x (elevated), 1.5x (high), 2.0x (extreme)
 //   - Research-backed: Elder (2002), Harris (2003), Murphy (1999)
 //
@@ -47,6 +50,15 @@ export type VolumeMetrics
     float volumeEfficiency
     float efficiencyRatio
     float volumeScore
+
+// @type Volume threshold data for tier classification
+// @field low Threshold for elevated volume (Tier 1, default: 1.3x)
+// @field medium Threshold for high volume (Tier 2, default: 1.5x)
+// @field high Threshold for extreme volume (Tier 3, default: 2.0x)
+export type VolumeThresholds
+    float low
+    float medium
+    float high
 
 // ============================================================================
 // VOLUME CALCULATION FUNCTIONS
@@ -122,15 +134,69 @@ export isVolumeSpike(float relativeVolume, float threshold = 1.5) =>
 // @param highThreshold Minimum for "extreme" tier (default: 2.0 = 200%)
 // @returns Tier: 0=normal, 1=elevated, 2=high, 3=extreme
 // @example getVolumeTier(volMetrics.relativeVolume) => Returns 0-3 based on standard thresholds
-export getVolumeTier(float relativeVolume,
-                     float lowThreshold = 1.3,
-                     float mediumThreshold = 1.5,
-                     float highThreshold = 2.0) =>
+export getVolumeTier(float relativeVolume, float lowThreshold = 1.3, float mediumThreshold = 1.5, float highThreshold = 2.0) =>
     tier = relativeVolume >= highThreshold ? 3 :
            relativeVolume >= mediumThreshold ? 2 :
            relativeVolume >= lowThreshold ? 1 :
            0
     tier
+
+// @function Calculates regime-adjusted volume thresholds based on volatility
+// @param atrRatio Current ATR divided by average ATR (from lib_regime_detection)
+// @param baseThresholdLow Base threshold for elevated tier (default: 1.3)
+// @param baseThresholdMed Base threshold for high tier (default: 1.5)
+// @param baseThresholdHigh Base threshold for extreme tier (default: 2.0)
+// @returns VolumeThresholds object with adjusted thresholds
+// @example In high volatility (atrRatio=1.5): thresholds raised by 20% to [1.56, 1.8, 2.4]
+// @example In low volatility (atrRatio=0.7): thresholds lowered by 15% to [1.1, 1.3, 1.7]
+// @note High volatility naturally brings higher volume → raise thresholds to maintain significance
+// @note Low volatility has lower volume baseline → lower thresholds to detect subtle moves
+export getRegimeAdjustedThresholds(float atrRatio, float baseThresholdLow = 1.3, float baseThresholdMed = 1.5, float baseThresholdHigh = 2.0) =>
+
+    // Determine multiplier based on volatility regime
+    // High vol (atrRatio > 1.3): raise thresholds +20%
+    // Low vol (atrRatio < 0.7): lower thresholds -15%
+    // Normal vol (0.7 to 1.3): no adjustment
+    multiplier = atrRatio > 1.3 ? 1.2 :      // High volatility: +20%
+                 atrRatio < 0.7 ? 0.85 :     // Low volatility: -15%
+                 1.0                          // Normal volatility: no change
+
+    // Apply multiplier to all thresholds
+    adjustedLow = baseThresholdLow * multiplier
+    adjustedMed = baseThresholdMed * multiplier
+    adjustedHigh = baseThresholdHigh * multiplier
+
+    // Return as VolumeThresholds object
+    VolumeThresholds.new(adjustedLow, adjustedMed, adjustedHigh)
+
+// @function Adjusts volume thresholds for different asset classes
+// @param assetType Asset class: "stock", "crypto", or "futures"
+// @param baseThresholdLow Base threshold for elevated tier (default: 1.3)
+// @param baseThresholdMed Base threshold for high tier (default: 1.5)
+// @param baseThresholdHigh Base threshold for extreme tier (default: 2.0)
+// @returns VolumeThresholds object with asset-adjusted thresholds
+// @example For crypto (24/7 trading): thresholds lowered by 15% to [1.1, 1.3, 1.7]
+// @example For futures (23hr trading): thresholds lowered by 10% to [1.2, 1.4, 1.8]
+// @example For stocks (6.5hr trading): no adjustment, standard [1.3, 1.5, 2.0]
+// @note Crypto/futures trade 24/7 → volume spread over more time → lower spike thresholds
+// @note Stocks trade 6.5hr RTH → volume concentrated → standard thresholds apply
+export getAssetAdjustedThresholds(simple string assetType, float baseThresholdLow = 1.3, float baseThresholdMed = 1.5, float baseThresholdHigh = 2.0) =>
+
+    // Determine multiplier based on asset class trading hours
+    // Crypto: 24hr trading → lower thresholds by 15%
+    // Futures: 23hr trading → lower thresholds by 10%
+    // Stock: 6.5hr RTH → standard thresholds
+    multiplier = assetType == "crypto" ? 0.85 :    // Crypto: -15%
+                 assetType == "futures" ? 0.9 :    // Futures: -10%
+                 1.0                                // Stocks: no change
+
+    // Apply multiplier to all thresholds
+    adjustedLow = baseThresholdLow * multiplier
+    adjustedMed = baseThresholdMed * multiplier
+    adjustedHigh = baseThresholdHigh * multiplier
+
+    // Return as VolumeThresholds object
+    VolumeThresholds.new(adjustedLow, adjustedMed, adjustedHigh)
 
 // ============================================================================
 // VOLUME-WEIGHTED CALCULATIONS
