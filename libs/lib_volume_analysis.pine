@@ -63,7 +63,6 @@ export type VolumeThresholds
 // ============================================================================
 // VOLUME CALCULATION FUNCTIONS
 // ============================================================================
-
 // @function Calculates comprehensive volume metrics for current bar
 // @param lookback Period for average calculations (default: 20)
 // @param minRangePercent Minimum price range as % of close to prevent division errors (default: 0.001 = 0.1%)
