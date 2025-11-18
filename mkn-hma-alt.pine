@@ -95,18 +95,9 @@ srLevel10 = input.source(close, "S/R Level 10", group="S/R Levels")
 
 // ============================= HMA CALCULATION ==============================
 
-// Hull Moving Average function
-f_hma(src, length) =>
-    halfLen = length / 2
-    sqrtLen = math.round(math.sqrt(length))
-    wma1 = ta.wma(src, halfLen)
-    wma2 = ta.wma(src, length)
-    raw = 2 * wma1 - wma2
-    ta.wma(raw, sqrtLen)
-
-// Calculate HMAs
-hmaFastLine = f_hma(close, hmaFast)
-hmaSlowLine = f_hma(close, hmaSlow)
+// Calculate HMAs using built-in ta.hma() function
+hmaFastLine = ta.hma(close, hmaFast)
+hmaSlowLine = ta.hma(close, hmaSlow)
 
 // Bollinger Bands around Fast HMA
 basis = hmaFastLine
