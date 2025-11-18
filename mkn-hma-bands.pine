@@ -5,10 +5,30 @@ indicator("MKN: HMA Bands Exit Strategy", shorttitle="MKN: HMA Bands", overlay=t
 // HMA BANDS WITH VOLUME-CONFIRMED EXITS
 // ============================================================================
 // Uses standardized volume thresholds from VolumeAnalysis library v1.1
+//
+// FEATURES:
+// • Regime-adaptive volume thresholds (ATR-based)
+//   - High volatility: +20% thresholds → fewer false positives
+//   - Low volatility: -15% thresholds → catches subtle moves
+//   - Normal volatility: Standard thresholds
+//
+// • Asset class awareness
+//   - Stock (6.5hr): Standard thresholds (1.3x/1.5x/2.0x)
+//   - Crypto (24hr): Lower thresholds -15% (1.1x/1.3x/1.7x)
+//   - Futures (23hr): Lower thresholds -10% (1.2x/1.4x/1.8x)
+//
+// • Volume tier classification
+//   - Tier 0 (NORMAL): < 1.3x average volume
+//   - Tier 1 (ELEVATED): 1.3x - 1.5x (above average)
+//   - Tier 2 (HIGH): 1.5x - 2.0x (significant interest)
+//   - Tier 3 (EXTREME): > 2.0x (major event/institutions)
+//
+// Research-backed: Elder (2002), Harris (2003), Murphy (1999)
 // ============================================================================
 
 // ============================= LIBRARY IMPORTS ==============================
 import redshad0ww/VolumeAnalysis/3 as vol_lib
+import redshad0ww/RegimeDetection/3 as regime_lib
 
 // ============================= INPUTS =======================================
 
@@ -19,8 +39,9 @@ stdDevMult = input.float(2.0, "StdDev Multiplier", minval=0.5, maxval=5.0, step=
 
 // Volume Parameters
 volPeriod = input.int(20, "Volume MA Period", minval=10, maxval=50, group="Volume")
-volSpikeMin = input.float(1.5, "Min Volume Spike (150%)", minval=1.0, maxval=3.0, step=0.1, group="Volume")
-volSpikeStrong = input.float(2.0, "Strong Volume Spike (200%)", minval=1.5, maxval=4.0, step=0.1, group="Volume")
+assetType = input.string("stock", "Asset Type", options=["stock", "crypto", "futures"],
+     tooltip="Asset class for volume threshold adjustment:\n• Stock (6.5hr): Standard thresholds\n• Crypto (24hr): Lower thresholds (-15%)\n• Futures (23hr): Lower thresholds (-10%)",
+     group="Volume")
 
 // Display
 showFill = input.bool(true, "Show Band Fill", group="Display")
@@ -55,10 +76,25 @@ isExpanding = bandWidth > ta.sma(bandWidth, 20)
 
 // ============================= VOLUME ANALYSIS ==============================
 
-avgVol = ta.sma(volume, volPeriod)
-volRatio = volume / avgVol
-isVolSpike = volRatio >= volSpikeMin
-isStrongVolSpike = volRatio >= volSpikeStrong
+// Calculate volume metrics using standardized library
+volMetrics = vol_lib.calculateVolumeMetrics(volPeriod)
+volRatio = volMetrics.relativeVolume
+
+// Detect volatility regime
+regime = regime_lib.detectRegime()
+
+// Calculate regime-adjusted thresholds (adapts to volatility)
+regimeThresholds = vol_lib.getRegimeAdjustedThresholds(regime.atrRatio)
+
+// Calculate asset-adjusted thresholds (adapts to trading hours)
+assetThresholds = vol_lib.getAssetAdjustedThresholds(assetType, regimeThresholds.low, regimeThresholds.medium, regimeThresholds.high)
+
+// Get volume tier (0=normal, 1=elevated, 2=high, 3=extreme)
+volTier = vol_lib.getVolumeTier(volRatio, assetThresholds.low, assetThresholds.medium, assetThresholds.high)
+
+// Define spike flags based on tier
+isVolSpike = volTier >= 2         // Tier 2+ (high or extreme volume)
+isStrongVolSpike = volTier >= 3   // Tier 3 (extreme volume only)
 
 // ============================= SIGNALS ======================================
 
@@ -148,10 +184,11 @@ if barstate.islast
     biasColor = bullish ? color.green : bearish ? color.red : color.gray
     table.cell(info, 1, 1, biasText, text_color=biasColor, bgcolor=color.new(color.gray, 70), text_size=size.small)
 
-    // Volume
+    // Volume (with tier classification)
     table.cell(info, 0, 2, "Volume:", text_color=color.white, bgcolor=color.new(color.gray, 70), text_size=size.small)
-    volText = str.tostring(volRatio, "#.00") + "x"
-    volColor = isStrongVolSpike ? color.green : isVolSpike ? color.yellow : color.gray
+    tierName = volTier == 3 ? "EXTREME" : volTier == 2 ? "HIGH" : volTier == 1 ? "ELEVATED" : "NORMAL"
+    volText = str.tostring(volRatio, "#.00") + "x (" + tierName + ")"
+    volColor = volTier == 3 ? color.red : volTier == 2 ? color.orange : volTier == 1 ? color.yellow : color.gray
     table.cell(info, 1, 2, volText, text_color=volColor, bgcolor=color.new(color.gray, 70), text_size=size.small)
 
     // Band state
