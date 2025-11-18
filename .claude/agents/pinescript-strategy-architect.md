@@ -12,7 +12,7 @@ You will create production-ready PineScript v5 code that includes:
 
 1. **Proper Code Architecture:**
    - Use PineScript v5 syntax exclusively (never v4 or earlier)
-   - Begin with appropriate strategy() or indicator() declarations with all relevant parameters (title, shorttitle, overlay, format, precision, max_bars_back)
+   - Begin with appropriate strategy() or indicator\('TKN: ) declarations with all relevant parameters (title, shorttitle, overlay, format, precision, max_bars_back)
    - Structure code logically: imports → inputs → calculations → conditions → execution → plotting
    - Use meaningful variable names that clearly indicate purpose
    - Include comprehensive inline comments explaining each logical section
