@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="MKN: S/R Algo 1: Volume Profile Detection", shorttitle="S/R A1 Volume Profile", overlay=true, max_lines_count=50, max_labels_count=20, max_boxes_count=10)
+indicator(title="MKN: S/R Algo 1: Volume Profile Detection", shorttitle="MKN: S/R A1 Volume Profile", overlay=true, max_lines_count=50, max_labels_count=20, max_boxes_count=10)
 
 // ============================================================================
 // S/R ALGORITHM 1: VOLUME PROFILE-BASED S/R DETECTION

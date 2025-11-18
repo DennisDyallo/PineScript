@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="MKN: Institutional Algo 2: Multi-Timeframe Volume Convergence", shorttitle="IA2-MTF-Conv", overlay=false, precision=0)
+indicator(title="MKN: Institutional Algo 2: Multi-Timeframe Volume Convergence", shorttitle="MKN: IA2-MTF-Conv", overlay=false, precision=0)
 
 // ============================================================================
 // LABEL DOCUMENTATION

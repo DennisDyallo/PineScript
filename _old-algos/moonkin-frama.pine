@@ -1,5 +1,5 @@
 //@version=4
-study("Moonkin FRAMA", shorttitle="Moonkin FRAMA",overlay=true)
+study("Moonkin FRAMA", shorttitle="MKN: Moonkin FRAMA",overlay=true)
 price = input(hl2)
 len = input(defval=126,minval=1)
 FC = input(defval=4,minval=1)

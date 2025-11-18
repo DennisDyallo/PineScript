@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="MKN: Institutional Algo 4: Ensemble Detector", shorttitle="IA4-Ensemble", overlay=false, precision=0, max_bars_back=500)
+indicator(title="MKN: Institutional Algo 4: Ensemble Detector", shorttitle="MKN: IA4-Ensemble", overlay=false, precision=0, max_bars_back=500)
 
 // ============================================================================
 // ULTIMATE ENSEMBLE - FULL IMPLEMENTATION

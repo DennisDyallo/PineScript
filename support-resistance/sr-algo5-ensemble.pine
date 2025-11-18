@@ -1,5 +1,5 @@
 //@version=5
-indicator(title="MKN: S/R Ensemble Detector (ALPHA v1.1)", shorttitle="S/R A5 Ensemble", overlay=true, max_lines_count=100, max_labels_count=30)
+indicator("MKN: S/R Ensemble Detector (ALPHA v1.1)", shorttitle="MKN: S/R A5 Ensemble", overlay=true, max_lines_count=100, max_labels_count=30)
 
 // ============================================================================
 // ⚠️ ALPHA STATUS: THEORETICAL DESIGN - EMPIRICAL VALIDATION PENDING ⚠️
@@ -45,7 +45,7 @@ import redshad0ww/CoreMath/3 as math_lib
 import redshad0ww/RegimeDetection/3 as regime_lib
 import redshad0ww/LevelUtils/2 as level_lib
 import redshad0ww/MTFUtils/3 as mtf_lib
-import redshad0ww/VolumeAnalysis/3 as vol_lib
+import redshad0ww/VolumeAnalysis/4 as vol_lib
 
 // ============================= TYPE DEFINITIONS =============================
 
@@ -698,6 +698,46 @@ if showTable
             table.cell(info, 1, 4, "No levels found",
                  text_color=color.orange, bgcolor=color.new(color.gray, 80), text_size=size.small)
             table.merge_cells(info, 0, 4, 1, 4)
+
+// ============================= LEVEL EXPORTS FOR HMA/OTHER INDICATORS =======
+// Export top 10 ensemble levels for import into mkn-hma-alt.pine via input.source()
+// Sorted by ensemble strength (already sorted in ensembleLevels array)
+
+var float topSRLevel1 = na
+var float topSRLevel2 = na
+var float topSRLevel3 = na
+var float topSRLevel4 = na
+var float topSRLevel5 = na
+var float topSRLevel6 = na
+var float topSRLevel7 = na
+var float topSRLevel8 = na
+var float topSRLevel9 = na
+var float topSRLevel10 = na
+
+if barstate.isconfirmed and array.size(ensembleLevels) > 0
+    // Export levels (already sorted by strength)
+    topSRLevel1 := array.size(ensembleLevels) > 0 ? array.get(ensembleLevels, 0).price : na
+    topSRLevel2 := array.size(ensembleLevels) > 1 ? array.get(ensembleLevels, 1).price : na
+    topSRLevel3 := array.size(ensembleLevels) > 2 ? array.get(ensembleLevels, 2).price : na
+    topSRLevel4 := array.size(ensembleLevels) > 3 ? array.get(ensembleLevels, 3).price : na
+    topSRLevel5 := array.size(ensembleLevels) > 4 ? array.get(ensembleLevels, 4).price : na
+    topSRLevel6 := array.size(ensembleLevels) > 5 ? array.get(ensembleLevels, 5).price : na
+    topSRLevel7 := array.size(ensembleLevels) > 6 ? array.get(ensembleLevels, 6).price : na
+    topSRLevel8 := array.size(ensembleLevels) > 7 ? array.get(ensembleLevels, 7).price : na
+    topSRLevel9 := array.size(ensembleLevels) > 8 ? array.get(ensembleLevels, 8).price : na
+    topSRLevel10 := array.size(ensembleLevels) > 9 ? array.get(ensembleLevels, 9).price : na
+
+// Plot levels (invisible, for import only)
+plot(topSRLevel1, "Top S/R Level 1", display=display.none)
+plot(topSRLevel2, "Top S/R Level 2", display=display.none)
+plot(topSRLevel3, "Top S/R Level 3", display=display.none)
+plot(topSRLevel4, "Top S/R Level 4", display=display.none)
+plot(topSRLevel5, "Top S/R Level 5", display=display.none)
+plot(topSRLevel6, "Top S/R Level 6", display=display.none)
+plot(topSRLevel7, "Top S/R Level 7", display=display.none)
+plot(topSRLevel8, "Top S/R Level 8", display=display.none)
+plot(topSRLevel9, "Top S/R Level 9", display=display.none)
+plot(topSRLevel10, "Top S/R Level 10", display=display.none)
 
 // ============================= ALERTS =======================================
 
