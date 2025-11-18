@@ -281,7 +281,7 @@ hmaFast = hma_lib.f_hma(close, 55)
 - [ ] **Task 4.2:** Import libraries
   - `import yourname/HMAUtils/1 as hma_lib`
   - `import redshad0ww/CoreMath/3 as math_lib`
-  - `import redshad0ww/VolumeAnalysis/3 as vol_lib`
+  - `import redshad0ww/VolumeAnalysis/4 as vol_lib`
 
 - [ ] **Task 4.3:** Add inputs for both HMA and S/R
   - HMA parameters (fast, slow, multiplier)

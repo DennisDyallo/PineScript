@@ -317,7 +317,7 @@ export getAssetAdjustedThresholds(
 
 - [ ] **Task 2.1:** Import lib_volume_analysis (if not already)
   - Add import at top of file
-  - `import redshad0ww/VolumeAnalysis/3 as vol_lib` (version 2 = updated)
+  - `import redshad0ww/VolumeAnalysis/4 as vol_lib` (version 2 = updated)
 
 - [ ] **Task 2.2:** Add regime detection import
   - `import redshad0ww/RegimeDetection/3 as regime_lib`
