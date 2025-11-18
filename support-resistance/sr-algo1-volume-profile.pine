@@ -105,11 +105,14 @@ baseBins = priceBins  // User's manual setting (40 default)
 // Calculate adaptive bin count (reuses avgATR from regime detection)
 // Optimal bin size = 2× ATR (statistically meaningful price level)
 // Number of bins = price range / (2 × ATR)
+
+// Extract ta.highest/ta.lowest to be called on each calculation
+tempHighest = ta.highest(high, vpLookback)
+tempLowest = ta.lowest(low, vpLookback)
+
 adaptiveBinCount = baseBins
 if useAdaptiveBins and avgATR > 0 and not na(avgATR)
     // Get price range first (needed for calculation)
-    tempHighest = ta.highest(high, vpLookback)
-    tempLowest = ta.lowest(low, vpLookback)
     priceRangeTemp = tempHighest - tempLowest
 
     if priceRangeTemp > 0
