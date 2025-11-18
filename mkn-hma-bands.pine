@@ -1,5 +1,5 @@
 //@version=5
-indicator("HMA Bands Exit Strategy", shorttitle="HMA Bands", overlay=true)
+indicator("MKN: HMA Bands Exit Strategy", shorttitle="MKN: HMA Bands", overlay=true)
 
 // ============================================================================
 // HMA BANDS WITH VOLUME-CONFIRMED EXITS
@@ -78,10 +78,10 @@ hmaCrossDown = ta.crossunder(hmaFastLine, hmaSlowLine)
 // ============================= VISUALIZATION ================================
 
 // Plot bands (fancy gradient-inspired colors)
-p1 = plot(hmaFastLine, "HMA 55", color=color.new(#00D9FF, 0), linewidth=2)  // Cyan blue
-p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA 55", color=color.new(#B57EDC, 15), linewidth=1)  // Lavender purple
-plot(upperBand, "Upper Band", color=color.new(#00FFA3, 0), linewidth=2)  // Mint green
-plot(lowerBand, "Lower Band", color=color.new(#FF6B9D, 0), linewidth=2)  // Pink red
+p1 = plot(hmaFastLine, "HMA Fast", color=color.new(#00D9FF, 0), linewidth=2)  // Cyan blue
+p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA Slow", color=color.new(#B57EDC, 15), linewidth=1)  // Lavender purple
+plot(upperBand, "Upper Band", color=color.new(#00FFA3, 70), linewidth=1)  // Mint green
+plot(lowerBand, "Lower Band", color=color.new(#FF6B9D, 30), linewidth=1)  // Pink red
 
 // Fill between HMA 55 and HMA 55 (gradient effect)
 hmaFillColor = hmaFastLine > hmaSlowLine ?
@@ -99,8 +99,19 @@ fill(plot(upperBand, display=display.none), plot(lowerBand, display=display.none
 // Background (subtle)
 bgcolor(bullish ? color.new(#00E676, 95) : bearish ? color.new(#FF5252, 95) : na)
 
-// Bar coloring based on price vs HMA
-barcolor(colorBars ? (close > hmaFastLine ? color.new(#00E676, 50) : color.new(#FF5252, 50)) : na, title="HMA Bar Colors")
+// Detect first bar entering HMA Fast/Slow band
+insideHMABand = (close >= math.min(hmaFastLine, hmaSlowLine) and close <= math.max(hmaFastLine, hmaSlowLine)) or                (open >= math.min(hmaFastLine, hmaSlowLine) and open <= math.max(hmaFastLine, hmaSlowLine))
+
+wasOutsideHMABand = not ((close[1] >= math.min(hmaFastLine[1], hmaSlowLine[1]) and close[1] <= math.max(hmaFastLine[1], hmaSlowLine[1])) or
+                         (open[1] >= math.min(hmaFastLine[1], hmaSlowLine[1]) and open[1] <= math.max(hmaFastLine[1], hmaSlowLine[1])))
+
+isFirstBarInBand = insideHMABand and wasOutsideHMABand
+
+// Bar coloring: Yellow for first bar entering HMA band with volume spike
+barcolor(colorBars ?
+     (isFirstBarInBand and isVolSpike ? color.new(color.yellow, 0) :  // Yellow for first bar in HMA band with 150%+ volume
+      close > hmaFastLine ? color.new(#40ffa3, 0) : color.new(#ff3374, 0)) : na,
+     title="HMA Bar Colors")
 
 // Buy/Sell signals (bright colors for visibility)
 plotshape(sellSignalStrong, "Sell Signal (Strong)", shape.triangledown, location.abovebar,
