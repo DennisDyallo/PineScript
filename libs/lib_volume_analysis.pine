@@ -60,15 +60,6 @@ export type VolumeThresholds
     float medium
     float high
 
-// @type Volume threshold data for tier classification
-// @field low Threshold for elevated volume (Tier 1, default: 1.3x)
-// @field medium Threshold for high volume (Tier 2, default: 1.5x)
-// @field high Threshold for extreme volume (Tier 3, default: 2.0x)
-export type VolumeThresholds
-    float low
-    float medium
-    float high
-
 // ============================================================================
 // VOLUME CALCULATION FUNCTIONS
 // ============================================================================
