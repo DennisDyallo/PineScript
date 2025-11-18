@@ -52,6 +52,51 @@ export getHigherTimeframe(simple string baseTF = "") =>
 
     result
 
+// @function Converts to higher timeframe with WIDER jumps (SR-Algo3 variant)
+// @param baseTF Base timeframe string (defaults to current timeframe)
+// @returns Higher timeframe string with wider spacing
+// @note Uses 5min→30min instead of 5min→15min for better MTF separation
+// @note Used by SR-Algo3 for more distinct timeframe confluence analysis
+// @example getHigherTimeframeWide("5") => "30" (vs standard "15")
+export getHigherTimeframeWide(simple string baseTF = "") =>
+    // Use current timeframe if not specified
+    string currentTF = baseTF == "" ? timeframe.period : baseTF
+
+    // Parse timeframe into numeric value for comparison
+    int tfInMinutes = timeframe.in_seconds(currentTF) / 60
+
+    string result = ""
+
+    // WIDER timeframe escalation (SR-Algo3 mapping)
+    if tfInMinutes <= 1
+        result := "5"      // 1min → 5min (same as standard)
+    else if tfInMinutes <= 3
+        result := "15"     // 3min → 15min (same as standard)
+    else if tfInMinutes <= 5
+        result := "30"     // 5min → 30min (WIDER: vs standard 15min)
+    else if tfInMinutes <= 15
+        result := "60"     // 15min → 1H (same as standard)
+    else if tfInMinutes <= 30
+        result := "60"     // 30min → 1H (same as standard)
+    else if tfInMinutes <= 60
+        result := "240"    // 1H → 4H (same as standard)
+    else if tfInMinutes <= 120
+        result := "240"    // 2H → 4H (same as standard)
+    else if tfInMinutes <= 240
+        result := "D"      // 4H → Daily (same as standard)
+    else if tfInMinutes < 1440
+        result := "D"      // Any intraday → Daily (same as standard)
+    else if currentTF == "D"
+        result := "W"      // Daily → Weekly (same as standard)
+    else if currentTF == "W"
+        result := "M"      // Weekly → Monthly (same as standard)
+    else if currentTF == "M"
+        result := "3M"     // Monthly → Quarterly (same as standard)
+    else
+        result := "M"      // Fallback to monthly
+
+    result
+
 // @function Converts current timeframe to second higher timeframe (2 levels up)
 // @param baseTF Base timeframe string (e.g., "5", "60", "D")
 // @returns Second higher timeframe string
@@ -61,6 +106,24 @@ export getSecondHigherTimeframe(simple string baseTF = "") =>
     string firstHigher = getHigherTimeframe(baseTF)
     string secondHigher = getHigherTimeframe(firstHigher)
     secondHigher
+
+// @function Converts to second higher timeframe using wide jumps
+// @param baseTF Base timeframe string (defaults to current timeframe)
+// @returns Second higher timeframe string with wide spacing
+// @example getSecondHigherTimeframeWide("5") => "60" (5min → 30min → 60min)
+export getSecondHigherTimeframeWide(simple string baseTF = "") =>
+    string firstHigher = getHigherTimeframeWide(baseTF)
+    string secondHigher = getHigherTimeframeWide(firstHigher)
+    secondHigher
+
+// @function Converts to third higher timeframe using wide jumps
+// @param baseTF Base timeframe string (defaults to current timeframe)
+// @returns Third higher timeframe string with wide spacing
+// @example getThirdHigherTimeframeWide("5") => "240" (5→30→60→240)
+export getThirdHigherTimeframeWide(simple string baseTF = "") =>
+    string secondHigher = getSecondHigherTimeframeWide(baseTF)
+    string thirdHigher = getHigherTimeframeWide(secondHigher)
+    thirdHigher
 
 // @function Converts current timeframe to third higher timeframe (3 levels up)
 // @param baseTF Base timeframe string (e.g., "5", "60", "D")

@@ -9,6 +9,11 @@ indicator("S/R Algo 1: Volume Profile Detection", shorttitle="S/R Volume Profile
 // Target Accuracy: 75-85% for predicting S/R holds
 // ============================================================================
 
+// ============================= LIBRARY IMPORTS ==============================
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/LevelUtils/1 as level_lib
+
 // ============================= INPUTS =======================================
 
 // Volume Profile Settings
@@ -36,24 +41,25 @@ minStrength = input.int(60, "Minimum Strength to Display", minval=40, maxval=85,
 showLabels = input.bool(true, "Show Strength Labels", group="Display")
 showVolumeHistogram = input.bool(false, "Show Volume Histogram (Debug)", group="Display", tooltip="Visual volume distribution")
 
-// Regime Detection (duplicated from TECH-DEBT.md)
+// Regime Detection
 useRegimeFilter = input.bool(true, "Enable Regime-Aware Scoring", group="Regime Detection")
 atrLength = input.int(14, "ATR Length", minval=7, maxval=50, group="Regime Detection")
 atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Regime Detection")
 
 // ============================= REGIME DETECTION =============================
-// Duplicated from TECH-DEBT.md - Section 1: Regime Detection Logic
+// Use library function for regime detection
 
+regimeData = regime_lib.detectRegime(atrLength, atrLookback)
+regimeName = regimeData.name
+atrRatio = regimeData.atrRatio
+isHighVol = regimeData.isHighVol
+isLowVol = regimeData.isLowVol
+isNormalVol = regimeData.isNormalVol
+regimeMultiplier = regimeData.multiplier
+
+// For adaptive bin calculation (needed below)
 currentATR = ta.atr(atrLength)
 avgATR = ta.sma(ta.atr(atrLength), atrLookback)
-atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
-
-isHighVol = atrRatio > 1.3
-isLowVol = atrRatio < 0.7
-isNormalVol = not isHighVol and not isLowVol
-
-regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
-regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85
 
 // ============================= ADAPTIVE BIN SIZING ==========================
 // PHASE 2 IMPROVEMENT: Calculate optimal bin count based on ATR
@@ -285,69 +291,7 @@ if (barstate.isconfirmed or barstate.islast) and array.size(volumeAtPrice) > 0
                 array.push(vpLevels, lvnLevel)
 
 // ============================= DYNAMIC STRENGTH SCORING =====================
-
-// Function to count price touches at a level
-// BUG FIX #3: Check if bar's range intersects level, not just close
-countTouches(levelPrice, lookback) =>
-    touches = 0
-    for i = 0 to math.min(lookback, bar_index)
-        // Check if bar's range intersects level (with tolerance)
-        barHigh = high[i]
-        barLow = low[i]
-        levelUpper = levelPrice * (1 + touchTolerance)
-        levelLower = levelPrice * (1 - touchTolerance)
-
-        // Touch if bar range overlaps level tolerance
-        if barHigh >= levelLower and barLow <= levelUpper
-            touches += 1
-    touches
-
-// Function to analyze rejection strength at level
-// BUG FIX #4: Check relevant wick based on support/resistance
-analyzeRejections(levelPrice, lookback) =>
-    rejectionStrength = 0.0
-    rejectionCount = 0
-
-    for i = 1 to math.min(lookback, bar_index)
-        // Check if bar's range intersects level
-        barHigh = high[i]
-        barLow = low[i]
-        levelUpper = levelPrice * (1 + touchTolerance)
-        levelLower = levelPrice * (1 - touchTolerance)
-
-        if barHigh >= levelLower and barLow <= levelUpper
-            // Check for wick rejection
-            bodyTop = math.max(open[i], close[i])
-            bodyBottom = math.min(open[i], close[i])
-            bodySize = bodyTop - bodyBottom
-
-            // Determine if level is support or resistance
-            // Support: level is below current close
-            // Resistance: level is above current close
-            isSupport = levelPrice < close[i]
-
-            // For support: check LOWER wick rejection
-            // For resistance: check UPPER wick rejection
-            relevantWick = isSupport ? (bodyBottom - low[i]) : (high[i] - bodyTop)
-
-            // Calculate wick ratio (only relevant wick)
-            if bodySize > 0
-                wickRatio = relevantWick / bodySize
-                if wickRatio > 0.5  // Significant wick (wick > 50% of body)
-                    rejectionStrength += wickRatio
-                    rejectionCount += 1
-
-    avgRejection = rejectionCount > 0 ? rejectionStrength / rejectionCount : 0.0
-    [avgRejection, rejectionCount]
-
-// Function to find most recent touch
-findMostRecentTouch(levelPrice, lookback) =>
-    for i = 0 to math.min(lookback, bar_index)
-        distance = math.abs(close[i] - levelPrice) / levelPrice
-        if distance <= touchTolerance
-            i
-
-    lookback  // Return lookback if never touched
+// Touch counting, rejection analysis, and recency detection now use library functions
 
 // Apply dynamic strength scoring to all levels
 if (barstate.isconfirmed or barstate.islast) and array.size(vpLevels) > 0
@@ -358,22 +302,22 @@ if (barstate.isconfirmed or barstate.islast) and array.size(vpLevels) > 0
         // Changed from multiplicative to additive per auditor recommendation
         baseStrength = level.baseStrength
 
-        // Touch count bonus (additive)
+        // Touch count bonus (additive) - using library
         touchBonus = 0.0
         if enableTouchCount
-            touches = countTouches(level.price, vpLookback)
-            touchBonus := (touches - 1) * 8  // +8 per touch after first
+            touches = level_lib.countTouches(level.price, vpLookback, touchTolerance)
+            touchBonus := level_lib.calculateTouchBonus(touches, 8.0)
 
-        // Rejection bonus (additive)
+        // Rejection bonus (additive) - using library
         rejectionBonus = 0.0
         if enableRejection
-            [avgRejection, rejCount] = analyzeRejections(level.price, vpLookback)
-            rejectionBonus := avgRejection * 12  // +12 per rejection strength
+            rejectionData = level_lib.analyzeRejections(level.price, vpLookback, touchTolerance, 0.5)
+            rejectionBonus := level_lib.calculateRejectionBonus(rejectionData, 12.0)
 
-        // Recency bonus (additive)
+        // Recency bonus (additive) - using library
         recencyBonus = 0.0
         if enableRecency
-            barsSinceTouch = findMostRecentTouch(level.price, vpLookback)
+            barsSinceTouch = level_lib.findMostRecentTouch(level.price, vpLookback, touchTolerance)
             recencyBonus := barsSinceTouch < 50 ? (50 - barsSinceTouch) * 0.3 : 0
 
         // Volume bonus (additive, 0-10 points based on volume ratio)
@@ -382,8 +326,8 @@ if (barstate.isconfirmed or barstate.islast) and array.size(vpLevels) > 0
         if maxVol > 0 and level.volume > 0 and not na(level.volume)
             volumeBonus := (level.volume / maxVol) * 10  // 0-10 points
 
-        // Distance penalty (additive penalty)
-        distance = math.abs(close - level.price) / close
+        // Distance penalty (additive penalty) - using library
+        distance = level_lib.calculateDistance(level.price, close)
         distancePenalty = distance > 0.05 ? (distance - 0.05) * 50 : 0  // -50 if 6% away
 
         // Regime adjustment (additive adjustment)
@@ -521,9 +465,21 @@ if barstate.isconfirmed or barstate.islast
 nearPOC = false
 if array.size(vpLevels) > 0
     pocPrice = array.get(vpLevels, 0).price
-    distance = math.abs(close - pocPrice) / close
+    distance = level_lib.calculateDistance(pocPrice, close)
     if distance < 0.01  // Within 1%
         nearPOC := true
 
 if nearPOC and not nearPOC[1]
     alert("Price near POC (highest volume level) on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+// ============================= DATA BRIDGE EXPORTS ===============================
+// Export POC/VAH/VAL for SR-Algo3 MTF Confluence (via input.source data bridge)
+// These invisible plots allow SR-Algo3 to import volume profile levels
+
+pocExport = array.size(vpLevels) > 0 ? array.get(vpLevels, 0).price : close
+vahExport = array.size(vpLevels) >= 2 ? array.get(vpLevels, 1).price : close
+valExport = array.size(vpLevels) >= 3 ? array.get(vpLevels, 2).price : close
+
+plot(pocExport, "POC", color=color.new(color.blue, 100), display=display.none)
+plot(vahExport, "VAH", color=color.new(color.red, 100), display=display.none)
+plot(valExport, "VAL", color=color.new(color.green, 100), display=display.none)

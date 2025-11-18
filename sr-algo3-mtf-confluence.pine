@@ -21,6 +21,12 @@ indicator("S/R Algo 3: Multi-Timeframe Confluence", shorttitle="S/R MTF Confluen
 // - Look-ahead bias removed from performance tracking
 // ============================================================================
 
+// ============================= LIBRARY IMPORTS ==============================
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/MTFUtils/1 as mtf_lib
+import redshad0ww/LevelUtils/1 as level_lib
+
 // ============================= INPUTS =======================================
 
 // Timeframe Settings
@@ -56,56 +62,13 @@ valSource = input.source(close, "VAL (Value Area Low)", group="Volume Integratio
 volumeConfluenceTolerance = input.float(0.01, "Volume Level Confluence Tolerance %", minval=0.005, maxval=0.03, step=0.005, group="Volume Integration", tooltip="Distance to consider S/R level aligned with volume level")
 
 // ============================= TIMEFRAME AUTO-DETECTION =====================
-// Duplicated from TECH-DEBT.md - Section 6: Multi-Timeframe Helper Functions
-
-getHigherTimeframe(baseTF) =>
-    tfInMinutes = timeframe.in_seconds(baseTF) / 60
-    string result = ""
-
-    // Check for daily, weekly, monthly first (handle both "D" and "1D" formats)
-    isDaily = baseTF == "D" or baseTF == "1D" or tfInMinutes == 1440
-    isWeekly = baseTF == "W" or baseTF == "1W" or tfInMinutes == 10080
-    isMonthly = baseTF == "M" or baseTF == "1M" or tfInMinutes >= 43200
-
-    if isMonthly
-        result := "M"
-    else if isWeekly
-        result := "M"
-    else if isDaily
-        result := "W"
-    else if tfInMinutes <= 1
-        result := "5"
-    else if tfInMinutes <= 3
-        result := "15"
-    else if tfInMinutes <= 5
-        result := "30"
-    else if tfInMinutes <= 15
-        result := "60"
-    else if tfInMinutes <= 30
-        result := "60"
-    else if tfInMinutes <= 60
-        result := "240"
-    else if tfInMinutes <= 240
-        result := "D"
-    else if tfInMinutes < 1440
-        result := "D"
-    else
-        result := "W"
-    result
-
-getSecondHigherTimeframe(baseTF) =>
-    firstHTF = getHigherTimeframe(baseTF)
-    getHigherTimeframe(firstHTF)
-
-getThirdHigherTimeframe(baseTF) =>
-    secondHTF = getSecondHigherTimeframe(baseTF)
-    getHigherTimeframe(secondHTF)
+// Use library MTF Wide functions (5→30 mapping specific to SR-Algo3)
 
 // Auto-detect or use manual timeframes
 currentTF = timeframe.period
-higherTF1 = manualTF1 == "" ? getHigherTimeframe(currentTF) : manualTF1
-higherTF2 = manualTF2 == "" ? getSecondHigherTimeframe(currentTF) : manualTF2
-higherTF3 = manualTF3 == "" ? getThirdHigherTimeframe(currentTF) : manualTF3
+higherTF1 = manualTF1 == "" ? mtf_lib.getHigherTimeframeWide(currentTF) : manualTF1
+higherTF2 = manualTF2 == "" ? mtf_lib.getSecondHigherTimeframeWide(currentTF) : manualTF2
+higherTF3 = manualTF3 == "" ? mtf_lib.getThirdHigherTimeframeWide(currentTF) : manualTF3
 
 // Timeframe weights (higher timeframes = more important)
 tfWeight1 = 1.0  // Current chart TF
@@ -113,18 +76,15 @@ tfWeight2 = 2.0  // First higher TF
 tfWeight3 = 3.0  // Second higher TF
 
 // ============================= REGIME DETECTION =============================
-// Duplicated from TECH-DEBT.md - Section 1: Regime Detection Logic
+// Use library function for regime detection
 
-currentATR = ta.atr(atrLength)
-avgATR = ta.sma(ta.atr(atrLength), atrLookback)
-atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
-
-isHighVol = atrRatio > 1.3
-isLowVol = atrRatio < 0.7
-isNormalVol = not isHighVol and not isLowVol
-
-regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
-regimeMultiplier = isLowVol ? 1.15 : isNormalVol ? 1.0 : 0.85
+regimeData = regime_lib.detectRegime(atrLength, atrLookback)
+regimeName = regimeData.name
+atrRatio = regimeData.atrRatio
+isHighVol = regimeData.isHighVol
+isLowVol = regimeData.isLowVol
+isNormalVol = regimeData.isNormalVol
+regimeMultiplier = regimeData.multiplier
 
 // ============================= SWING DETECTION ACROSS TIMEFRAMES ============
 
@@ -266,7 +226,7 @@ mergeAcrossTimeframes() =>
                 for j = i + 1 to array.size(allLevels) - 1
                     if not array.get(processed, j)
                         otherLevel = array.get(allLevels, j)
-                        distance = math.abs(currentLevel.price - otherLevel.price) / currentLevel.price
+                        distance = level_lib.calculateDistance(currentLevel.price, otherLevel.price)
 
                         // AUDIT FIX: Only merge levels of same type (S with S, R with R)
                         if distance <= mergeTolerance and currentLevel.levelType == otherLevel.levelType
@@ -314,7 +274,7 @@ mergeAcrossTimeframes() =>
                 confluenceBonus = tfCount == 3 ? 30.0 : tfCount == 2 ? 20.0 : 0.0
 
                 // Distance weighting
-                distance = math.abs(close - avgPrice) / close
+                distance = level_lib.calculateDistance(avgPrice, close)
                 distanceMultiplier = distance < 0.05 ? 1.0 : math.max(0.6, 1.0 - distance)
 
                 // Regime adjustment
@@ -400,11 +360,11 @@ if array.size(mtfLevels) > 0
 
         // Check if price is touching this level (within 0.5% tolerance)
         touchTolerance = 0.005
-        distanceToLevel = math.abs(close - level.price) / level.price
+        distanceToLevel = level_lib.calculateDistance(level.price, close)
 
         // AUDIT FOLLOWUP FIX: Prevent double-counting same bar
-        lastRecordedTouch = array.size(level.touchBarIndices) > 0 
-          ? array.get(level.touchBarIndices, array.size(level.touchBarIndices) - 1) 
+        lastRecordedTouch = array.size(level.touchBarIndices) > 0
+          ? array.get(level.touchBarIndices, array.size(level.touchBarIndices) - 1)
           : -1
 
         if distanceToLevel < touchTolerance and bar_index != lastRecordedTouch
@@ -576,7 +536,7 @@ if array.size(mtfLevels) > 0
     for i = 0 to array.size(mtfLevels) - 1
         level = array.get(mtfLevels, i)
         if level.timeframeCount == 3
-            distance = math.abs(close - level.price) / close
+            distance = level_lib.calculateDistance(level.price, close)
             if distance < 0.01  // Within 1%
                 strongConfluenceNearby := true
 

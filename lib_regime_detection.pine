@@ -80,6 +80,62 @@ export detectRegime(
 export detectRegimeSimple() =>
     detectRegime(14, 50, 1.3, 0.7, 1.15, 1.0, 0.85)
 
+// @function Detects regime with SMOOTH transition multiplier (no discontinuities)
+// @param atrLength Period for ATR calculation (default: 14)
+// @param atrLookback Period for average ATR calculation (default: 50)
+// @param highVolThreshold Ratio threshold for high volatility (default: 1.3)
+// @param lowVolThreshold Ratio threshold for low volatility (default: 0.7)
+// @param lowVolMultiplier Strength multiplier at low vol threshold (default: 1.15)
+// @param highVolMultiplier Strength multiplier at high vol threshold (default: 0.85)
+// @returns RegimeData with smooth interpolated multiplier
+// @note Used by SR-Algo4 for continuous regime adjustment
+// @example regime = detectRegimeSmooth() => Smooth regime with linear interpolation
+export detectRegimeSmooth(
+     simple int atrLength = 14,
+     simple int atrLookback = 50,
+     simple float highVolThreshold = 1.3,
+     simple float lowVolThreshold = 0.7,
+     simple float lowVolMultiplier = 1.15,
+     simple float highVolMultiplier = 0.85) =>
+
+    // Calculate current and average ATR
+    currentATR = ta.atr(atrLength)
+    avgATR = ta.sma(ta.atr(atrLength), atrLookback)
+
+    // Calculate ATR ratio with safety check
+    atrRatio = avgATR > 0 and not na(avgATR) and not na(currentATR) ?
+         currentATR / avgATR :
+         1.0
+
+    // Classify regime based on thresholds (for flags)
+    isHighVol = atrRatio > highVolThreshold
+    isLowVol = atrRatio < lowVolThreshold
+    isNormalVol = not isHighVol and not isLowVol
+
+    // Determine regime name
+    name = isHighVol ? "High Vol" :
+           isLowVol ? "Low Vol" :
+           "Normal Vol"
+
+    // SMOOTH multiplier calculation (linear interpolation, no jumps)
+    // Maps atrRatio from [lowVolThreshold, highVolThreshold] to [lowVolMultiplier, highVolMultiplier]
+    multiplier = 0.0
+    if atrRatio < lowVolThreshold
+        // Below low vol threshold: use max multiplier
+        multiplier := lowVolMultiplier
+    else if atrRatio > highVolThreshold
+        // Above high vol threshold: use min multiplier
+        multiplier := highVolMultiplier
+    else
+        // In between: smooth linear interpolation
+        // Formula: lowMultiplier - ((ratio - lowThreshold) / (highThreshold - lowThreshold)) * (lowMultiplier - highMultiplier)
+        rangeWidth = highVolThreshold - lowVolThreshold
+        multiplierRange = lowVolMultiplier - highVolMultiplier
+        multiplier := lowVolMultiplier - ((atrRatio - lowVolThreshold) / rangeWidth) * multiplierRange
+
+    // Return regime data
+    RegimeData.new(name, atrRatio, multiplier, isHighVol, isLowVol, isNormalVol)
+
 // @function Gets regime color for visualization
 // @param regime RegimeData object
 // @returns Color: red for high vol, green for low vol, gray for normal

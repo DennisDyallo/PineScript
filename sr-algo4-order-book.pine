@@ -23,6 +23,11 @@ indicator("S/R Algo 4: Order Book Reconstruction", shorttitle="S/R Order Book", 
 // Previous: 60-65% estimated (pre-audit v1.0)
 // ============================================================================
 
+// ============================= LIBRARY IMPORTS ==============================
+import redshad0ww/CoreMath/1 as math_lib
+import redshad0ww/RegimeDetection/1 as regime_lib
+import redshad0ww/LevelUtils/1 as level_lib
+
 // ============================= INPUTS =======================================
 
 // Analysis Settings
@@ -52,25 +57,15 @@ atrLength = input.int(14, "ATR Length", minval=7, maxval=50, group="Regime Detec
 atrLookback = input.int(50, "ATR Regime Lookback", minval=20, maxval=100, group="Regime Detection")
 
 // ============================= REGIME DETECTION =============================
-// AUDIT FIX: Smooth regime adjustment (no discontinuities)
+// Use library smooth regime function (no discontinuities)
 
-currentATR = ta.atr(atrLength)
-avgATR = ta.sma(ta.atr(atrLength), atrLookback)
-atrRatio = avgATR > 0 and not na(avgATR) ? currentATR / avgATR : 1.0
-
-// Binary classification for display
-isHighVol = atrRatio > 1.3
-isLowVol = atrRatio < 0.7
-isNormalVol = not isHighVol and not isLowVol
-
-regimeName = isHighVol ? "High Vol" : isLowVol ? "Low Vol" : "Normal Vol"
-
-// AUDIT FIX: Smooth multiplier transition (no jumps)
-// Uses linear interpolation in [0.7, 1.3] range
-// Low vol (0.7): 1.15 → Normal (1.0): 1.0 → High vol (1.3): 0.85
-regimeMultiplier = atrRatio < 0.7 ? 1.15 :
-                   atrRatio > 1.3 ? 0.85 :
-                   1.15 - ((atrRatio - 0.7) / 0.6) * 0.30  // Smooth transition
+regimeData = regime_lib.detectRegimeSmooth(atrLength, atrLookback, 1.3, 0.7, 1.15, 0.85)
+regimeName = regimeData.name
+atrRatio = regimeData.atrRatio
+isHighVol = regimeData.isHighVol
+isLowVol = regimeData.isLowVol
+isNormalVol = regimeData.isNormalVol
+regimeMultiplier = regimeData.multiplier  // Smoothly interpolated between 0.85-1.15
 
 // ============================= VOLUME CALCULATIONS ==========================
 // Duplicated from TECH-DEBT.md - Section 3: Volume Calculations
@@ -352,10 +347,11 @@ if barstate.islast and array.size(rejectionLevels) > 0
             baseStrength = volumeScore + rejectionScore + wickScore
 
             // Distance weighting (AUDIT v2.1: ATR-adaptive Gaussian decay)
-            distance = close > 0 ? math.abs(close - rejection.price) / close : 0.0
+            distance = level_lib.calculateDistance(rejection.price, close)
 
             // ATR-adaptive distance scale (low vol: tight scale, high vol: wide scale)
-            distanceATRPct = close > 0 and not na(currentATR) ? currentATR / close : 0.015
+            currentATR_local = ta.atr(atrLength)
+            distanceATRPct = math_lib.safeDivide(currentATR_local, close, 0.015)
             distanceScale = math.max(0.05, math.min(0.30, distanceATRPct * 3.0))
             // ATR=1%: scale=3%, ATR=5%: scale=15%, ATR=10%: scale=30%
 
@@ -519,7 +515,7 @@ if array.size(orderBookLevels) > 0
     for i = 0 to math.min(2, array.size(orderBookLevels) - 1)
         level = array.get(orderBookLevels, i)
         if level.strength >= 65
-            distance = math.abs(close - level.price) / close
+            distance = level_lib.calculateDistance(level.price, close)
             if distance < 0.015  // Within 1.5%
                 strongOrderNearby := true
 

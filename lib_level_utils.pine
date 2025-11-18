@@ -1,0 +1,181 @@
+//@version=5
+// @description Common utility functions for S/R level distance, touch detection, and rejection analysis
+// @version 1.0.0
+library("LevelUtils")
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+// @type Rejection analysis result data
+// @field avgRejection Average rejection strength (wick ratio)
+// @field rejectionCount Number of significant rejections found
+export type RejectionData
+    float avgRejection
+    int rejectionCount
+
+// ============================================================================
+// DISTANCE CALCULATION FUNCTIONS
+// ============================================================================
+
+// @function Calculates percentage distance from current price to a level
+// @param levelPrice The S/R level price to measure distance to
+// @param currentPrice Price to measure from (default: current close)
+// @returns Percentage distance as decimal (e.g., 0.025 = 2.5% away)
+// @example calculateDistance(100.0, 102.0) => 0.02 (2% distance)
+export calculateDistance(float levelPrice, float currentPrice = close) =>
+    math.abs(currentPrice - levelPrice) / levelPrice
+
+// @function Calculates distance from price to level using custom reference price
+// @param levelPrice The S/R level price
+// @param currentPrice Price to measure from
+// @param useCurrentAsReference If true, divides by currentPrice instead of levelPrice
+// @returns Percentage distance as decimal
+export calculateDistanceCustom(float levelPrice, float currentPrice = close, bool useCurrentAsReference = false) =>
+    float reference = useCurrentAsReference ? currentPrice : levelPrice
+    reference > 0 ? math.abs(currentPrice - levelPrice) / reference : 0.0
+
+// ============================================================================
+// TOUCH DETECTION FUNCTIONS
+// ============================================================================
+
+// @function Checks if a price bar's range touches/intersects a level within tolerance
+// @param levelPrice The S/R level price to check
+// @param barHigh High price of the bar to check
+// @param barLow Low price of the bar to check
+// @param tolerance Touch tolerance as percentage (e.g., 0.002 = 0.2%)
+// @returns True if bar range overlaps level tolerance band
+// @example isTouching(100.0, 100.5, 99.5, 0.005) => true (bar range crosses level)
+export isTouching(float levelPrice, float barHigh, float barLow, float tolerance = 0.002) =>
+    float levelUpper = levelPrice * (1 + tolerance)
+    float levelLower = levelPrice * (1 - tolerance)
+
+    // Touch if bar range overlaps level tolerance band
+    barHigh >= levelLower and barLow <= levelUpper
+
+// @function Checks if current bar is touching a level
+// @param levelPrice The S/R level price to check
+// @param tolerance Touch tolerance as percentage (default: 0.002 = 0.2%)
+// @returns True if current bar touches level
+export isTouchingCurrent(float levelPrice, float tolerance = 0.002) =>
+    isTouching(levelPrice, high, low, tolerance)
+
+// @function Counts how many times price has touched a level in lookback period
+// @param levelPrice The S/R level price
+// @param lookback Number of bars to look back
+// @param tolerance Touch tolerance as percentage (default: 0.002 = 0.2%)
+// @returns Number of touches found
+// @example countTouches(100.0, 50, 0.005) => 3 (found 3 touches in last 50 bars)
+export countTouches(float levelPrice, int lookback, float tolerance = 0.002) =>
+    int touches = 0
+    for i = 0 to math.min(lookback, bar_index)
+        if isTouching(levelPrice, high[i], low[i], tolerance)
+            touches += 1
+    touches
+
+// @function Finds bars since most recent touch of a level
+// @param levelPrice The S/R level price
+// @param lookback Maximum bars to look back
+// @param tolerance Touch tolerance as percentage (default: 0.002 = 0.2%)
+// @returns Bars since last touch (returns lookback if never touched)
+export findMostRecentTouch(float levelPrice, int lookback, float tolerance = 0.002) =>
+    int barsSince = lookback
+    for i = 0 to math.min(lookback, bar_index)
+        if isTouching(levelPrice, high[i], low[i], tolerance)
+            barsSince := i
+            break
+    barsSince
+
+// ============================================================================
+// REJECTION ANALYSIS FUNCTIONS
+// ============================================================================
+
+// @function Analyzes wick rejection strength at a level
+// @param levelPrice The S/R level price
+// @param lookback Number of bars to analyze
+// @param tolerance Touch tolerance as percentage (default: 0.002 = 0.2%)
+// @param minWickRatio Minimum wick:body ratio to count as rejection (default: 0.5)
+// @returns RejectionData with average rejection strength and count
+// @note Automatically determines if level is support/resistance based on current price
+// @example analyzeRejections(100.0, 50) => RejectionData with avg strength and count
+export analyzeRejections(float levelPrice, int lookback, float tolerance = 0.002, float minWickRatio = 0.5) =>
+    float rejectionStrength = 0.0
+    int rejectionCount = 0
+
+    for i = 1 to math.min(lookback, bar_index)
+        // Check if bar touches level
+        if isTouching(levelPrice, high[i], low[i], tolerance)
+            // Get bar body metrics
+            float bodyTop = math.max(open[i], close[i])
+            float bodyBottom = math.min(open[i], close[i])
+            float bodySize = bodyTop - bodyBottom
+
+            // Determine if level is support or resistance
+            // Support: level below bar's close
+            // Resistance: level above bar's close
+            bool isSupport = levelPrice < close[i]
+
+            // Check relevant wick (lower for support, upper for resistance)
+            float relevantWick = isSupport ? (bodyBottom - low[i]) : (high[i] - bodyTop)
+
+            // Calculate wick ratio
+            if bodySize > 0
+                float wickRatio = relevantWick / bodySize
+                if wickRatio > minWickRatio
+                    rejectionStrength += wickRatio
+                    rejectionCount += 1
+
+    float avgRejection = rejectionCount > 0 ? rejectionStrength / rejectionCount : 0.0
+    RejectionData.new(avgRejection, rejectionCount)
+
+// @function Quick check if current bar shows rejection at level
+// @param levelPrice The S/R level price
+// @param tolerance Touch tolerance as percentage (default: 0.002)
+// @param minWickRatio Minimum wick:body ratio (default: 0.5)
+// @returns True if current bar shows significant rejection
+export isRejecting(float levelPrice, float tolerance = 0.002, float minWickRatio = 0.5) =>
+    bool touching = isTouchingCurrent(levelPrice, tolerance)
+
+    if touching
+        float bodyTop = math.max(open, close)
+        float bodyBottom = math.min(open, close)
+        float bodySize = bodyTop - bodyBottom
+        bool isSupport = levelPrice < close
+        float relevantWick = isSupport ? (bodyBottom - low) : (high - bodyTop)
+
+        if bodySize > 0
+            float wickRatio = relevantWick / bodySize
+            wickRatio > minWickRatio
+        else
+            false
+    else
+        false
+
+// ============================================================================
+// LEVEL STRENGTH SCORING FUNCTIONS
+// ============================================================================
+
+// @function Calculates recency bonus for a level (more recent = higher bonus)
+// @param levelPrice The S/R level price
+// @param lookback Maximum lookback period
+// @param tolerance Touch tolerance (default: 0.002)
+// @param maxBonus Maximum bonus points (default: 15.0)
+// @returns Recency bonus score (0 to maxBonus)
+export calculateRecencyBonus(float levelPrice, int lookback, float tolerance = 0.002, float maxBonus = 15.0) =>
+    int barsSinceTouch = findMostRecentTouch(levelPrice, lookback, tolerance)
+    float recencyRatio = barsSinceTouch < lookback ? (lookback - barsSinceTouch) / lookback : 0.0
+    recencyRatio * maxBonus
+
+// @function Calculates touch count bonus (more touches = stronger level)
+// @param touchCount Number of touches found
+// @param bonusPerTouch Bonus points per touch after first (default: 8.0)
+// @returns Touch bonus score
+export calculateTouchBonus(int touchCount, float bonusPerTouch = 8.0) =>
+    (touchCount - 1) * bonusPerTouch
+
+// @function Calculates rejection bonus from rejection analysis
+// @param rejectionData RejectionData from analyzeRejections()
+// @param multiplier Multiplier for rejection strength (default: 12.0)
+// @returns Rejection bonus score
+export calculateRejectionBonus(RejectionData rejectionData, float multiplier = 12.0) =>
+    rejectionData.avgRejection * multiplier
