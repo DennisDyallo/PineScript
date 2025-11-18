@@ -162,10 +162,17 @@ fill(plot(upperBand, display=display.none), plot(lowerBand, display=display.none
 bgcolor(bullishBias ? color.new(color.green, 97) : bearishBias ? color.new(color.red, 97) : na, title="Bias Background")
 
 // Plot Exit Signals (CRITICAL)
-plotshape(longExit, title="Long Exit", style=shape.triangledown, location=location.abovebar,
-     color=color.new(color.red, 0), size=isStrongSpike ? size.normal : size.small, text="EXIT")
-plotshape(shortExit, title="Short Exit", style=shape.triangleup, location=location.belowbar,
-     color=color.new(color.green, 0), size=isStrongSpike ? size.normal : size.small, text="EXIT")
+// Strong volume exits (larger markers)
+plotshape(longExitStrong, title="Long Exit (Strong)", style=shape.triangledown, location=location.abovebar,
+     color=color.new(color.red, 0), size=size.normal, text="EXIT")
+plotshape(shortExitStrong, title="Short Exit (Strong)", style=shape.triangleup, location=location.belowbar,
+     color=color.new(color.green, 0), size=size.normal, text="EXIT")
+
+// Regular volume exits (smaller markers)
+plotshape(longExit and not longExitStrong, title="Long Exit", style=shape.triangledown, location=location.abovebar,
+     color=color.new(color.red, 0), size=size.small, text="EXIT")
+plotshape(shortExit and not shortExitStrong, title="Short Exit", style=shape.triangleup, location=location.belowbar,
+     color=color.new(color.green, 0), size=size.small, text="EXIT")
 
 // Plot HMA Twist (crossover signals)
 plotshape(hmaTwistBullish, title="Bullish Twist", style=shape.circle, location=location.belowbar,
