@@ -460,78 +460,79 @@ if barstate.isconfirmed
             array.push(merged, false)
 
         for i = 0 to totalLevels - 1
-            if not array.get(merged, i)
-                currentLevel = array.get(allLevels, i)
+            if i < array.size(merged) and i < array.size(allLevels)
+                if not array.get(merged, i)
+                    currentLevel = array.get(allLevels, i)
 
-                // Start ensemble cluster
-                clusterPrice = currentLevel.price
-                clusterType = currentLevel.levelType
-                clusterCount = 1
+                    // Start ensemble cluster
+                    clusterPrice = currentLevel.price
+                    clusterType = currentLevel.levelType
+                    clusterCount = 1
 
-                vpScore = currentLevel.source == "VP" ? currentLevel.strength : 0.0
-                statScore = currentLevel.source == "STAT" ? currentLevel.strength : 0.0
-                mtfScore = currentLevel.source == "MTF" ? currentLevel.strength : 0.0
-                obScore = currentLevel.source == "OB" ? currentLevel.strength : 0.0
+                    vpScore = currentLevel.source == "VP" ? currentLevel.strength : 0.0
+                    statScore = currentLevel.source == "STAT" ? currentLevel.strength : 0.0
+                    mtfScore = currentLevel.source == "MTF" ? currentLevel.strength : 0.0
+                    obScore = currentLevel.source == "OB" ? currentLevel.strength : 0.0
 
-                sources = currentLevel.source
+                    sources = currentLevel.source
 
-                array.set(merged, i, true)
+                    array.set(merged, i, true)
 
-                // Find nearby levels
-                for j = i + 1 to totalLevels - 1
-                    // Defensive bounds check (prevents PineScript loop edge case)
-                    if j >= 0 and j < totalLevels
-                        if not array.get(merged, j)
-                            otherLevel = array.get(allLevels, j)
-                            distance = level_lib.calculateDistance(currentLevel.price, otherLevel.price)
+                    // Find nearby levels
+                    for j = i + 1 to totalLevels - 1
+                        // Defensive bounds check (prevents PineScript loop edge case)
+                        if j >= 0 and j < totalLevels
+                            if not array.get(merged, j)
+                                otherLevel = array.get(allLevels, j)
+                                distance = level_lib.calculateDistance(currentLevel.price, otherLevel.price)
 
-                            if distance <= mergeTolerance and currentLevel.levelType == otherLevel.levelType
-                                // Merge
-                                clusterPrice := (clusterPrice * clusterCount + otherLevel.price) / (clusterCount + 1)
-                                clusterCount += 1
+                                if distance <= mergeTolerance and currentLevel.levelType == otherLevel.levelType
+                                    // Merge
+                                    clusterPrice := (clusterPrice * clusterCount + otherLevel.price) / (clusterCount + 1)
+                                    clusterCount += 1
 
-                                if otherLevel.source == "VP" and vpScore == 0.0
-                                    vpScore := otherLevel.strength
-                                    sources := sources + "+VP"
-                                else if otherLevel.source == "STAT" and statScore == 0.0
-                                    statScore := otherLevel.strength
-                                    sources := sources + "+STAT"
-                                else if otherLevel.source == "MTF" and mtfScore == 0.0
-                                    mtfScore := otherLevel.strength
-                                    sources := sources + "+MTF"
-                                else if otherLevel.source == "OB" and obScore == 0.0
-                                    obScore := otherLevel.strength
-                                    sources := sources + "+OB"
+                                    if otherLevel.source == "VP" and vpScore == 0.0
+                                        vpScore := otherLevel.strength
+                                        sources := sources + "+VP"
+                                    else if otherLevel.source == "STAT" and statScore == 0.0
+                                        statScore := otherLevel.strength
+                                        sources := sources + "+STAT"
+                                    else if otherLevel.source == "MTF" and mtfScore == 0.0
+                                        mtfScore := otherLevel.strength
+                                        sources := sources + "+MTF"
+                                    else if otherLevel.source == "OB" and obScore == 0.0
+                                        obScore := otherLevel.strength
+                                        sources := sources + "+OB"
 
-                                array.set(merged, j, true)
+                                    array.set(merged, j, true)
 
-                // Calculate ensemble score
-                agreement = (vpScore > 0 ? 1 : 0) + (statScore > 0 ? 1 : 0) + (mtfScore > 0 ? 1 : 0) + (obScore > 0 ? 1 : 0)
+                    // Calculate ensemble score
+                    agreement = (vpScore > 0 ? 1 : 0) + (statScore > 0 ? 1 : 0) + (mtfScore > 0 ? 1 : 0) + (obScore > 0 ? 1 : 0)
 
-                // Fixed weights (now sum to 1.0): VP(35%) + MTF(30%) + Statistical(20%) + OrderBook(15%)
-                totalWeight = (vpScore > 0 ? 0.35 : 0.0) + (statScore > 0 ? 0.20 : 0.0) +
-                             (mtfScore > 0 ? 0.30 : 0.0) + (obScore > 0 ? 0.15 : 0.0)
+                    // Fixed weights (now sum to 1.0): VP(35%) + MTF(30%) + Statistical(20%) + OrderBook(15%)
+                    totalWeight = (vpScore > 0 ? 0.35 : 0.0) + (statScore > 0 ? 0.20 : 0.0) +
+                                 (mtfScore > 0 ? 0.30 : 0.0) + (obScore > 0 ? 0.15 : 0.0)
 
-                // Normalize weights based on participating algorithms
-                baseScore = totalWeight > 0 ?
-                           ((vpScore * 0.35) + (statScore * 0.20) + (mtfScore * 0.30) + (obScore * 0.15)) / totalWeight * 100 :
-                           0.0
+                    // Normalize weights based on participating algorithms
+                    baseScore = totalWeight > 0 ?
+                               ((vpScore * 0.35) + (statScore * 0.20) + (mtfScore * 0.30) + (obScore * 0.15)) / totalWeight * 100 :
+                               0.0
 
-                // Agreement bonus (less aggressive)
-                agreementBonus = agreement == 4 ? 1.15 : agreement == 3 ? 1.10 : agreement == 2 ? 1.05 : 1.0
+                    // Agreement bonus (less aggressive)
+                    agreementBonus = agreement == 4 ? 1.15 : agreement == 3 ? 1.10 : agreement == 2 ? 1.05 : 1.0
 
-                ensembleStrength = math.min(100, baseScore * agreementBonus)
+                    ensembleStrength = math.min(100, baseScore * agreementBonus)
 
-                confidence = agreement == 4 ? "VERY HIGH" : agreement == 3 ? "HIGH" : agreement == 2 ? "MODERATE" : "LOW"
+                    confidence = agreement == 4 ? "VERY HIGH" : agreement == 3 ? "HIGH" : agreement == 2 ? "MODERATE" : "LOW"
 
-                levelColor = clusterType == "Support" ?
-                     (ensembleStrength >= 80 ? color.new(color.green, 0) : color.new(color.green, 30)) :
-                     (ensembleStrength >= 80 ? color.new(color.red, 0) : color.new(color.red, 30))
+                    levelColor = clusterType == "Support" ?
+                         (ensembleStrength >= 80 ? color.new(color.green, 0) : color.new(color.green, 30)) :
+                         (ensembleStrength >= 80 ? color.new(color.red, 0) : color.new(color.red, 30))
 
-                // Filter and add
-                if agreement >= minAgreement and ensembleStrength >= minStrength
-                    ensembleLevel = EnsembleLevel.new(clusterPrice, clusterType, ensembleStrength, agreement, sources, confidence, levelColor)
-                    array.push(ensembleLevels, ensembleLevel)
+                    // Filter and add
+                    if agreement >= minAgreement and ensembleStrength >= minStrength
+                        ensembleLevel = EnsembleLevel.new(clusterPrice, clusterType, ensembleStrength, agreement, sources, confidence, levelColor)
+                        array.push(ensembleLevels, ensembleLevel)
 
     // Sort by strength
     ensembleSize = array.size(ensembleLevels)
