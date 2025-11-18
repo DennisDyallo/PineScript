@@ -189,11 +189,13 @@ f_clusterLevels(array<SRLevel> levels, float tolerance) =>
 
 var array<SRLevel> vpLevels = array.new<SRLevel>()
 
+// Extract ta functions outside conditional for consistency
+highestPrice = ta.highest(high, vpLookback)
+lowestPrice = ta.lowest(low, vpLookback)
+
 if enableVP and barstate.isconfirmed
     array.clear(vpLevels)
 
-    highestPrice = ta.highest(high, vpLookback)
-    lowestPrice = ta.lowest(low, vpLookback)
     priceRange = highestPrice - lowestPrice
 
     if priceRange > 0
@@ -421,13 +423,14 @@ if enableMTF and barstate.isconfirmed
 
 var array<SRLevel> obLevels = array.new<SRLevel>()
 
+// Extract ta function outside conditional for consistency
+avgVol = ta.sma(volume, 20)
+
 if enableOB and barstate.isconfirmed
     array.clear(obLevels)
 
     // Build array of SRLevel objects directly
     array<SRLevel> rawRejectionLevels = array.new<SRLevel>()
-
-    avgVol = ta.sma(volume, 20)
 
     for i = 0 to math.min(obLookback, bar_index)
         barHigh = high[i]
