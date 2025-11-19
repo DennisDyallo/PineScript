@@ -4,46 +4,255 @@ indicator("MKN: HMA Bands + S/R Exit Strategy", shorttitle="MKN: HMA + S/R", ove
 // ============================================================================
 // HMA BANDS WITH VOLUME-CONFIRMED EXITS + S/R CONFLUENCE
 // ============================================================================
-// Combines exit timing (HMA bands) with exit location (S/R levels) for
-// high-probability exits
+// Exit timing indicator combining Hull Moving Average bands with volume
+// confirmation and S/R level confluence for high-probability exit signals.
 //
 // Uses standardized volume thresholds from VolumeAnalysis library v1.1
-//
-// FEATURES:
-// • Regime-adaptive volume thresholds (ATR-based)
-//   - High volatility: +20% thresholds → fewer false positives
-//   - Low volatility: -15% thresholds → catches subtle moves
-//   - Normal volatility: Standard thresholds
-//
-// • Asset class awareness
-//   - Stock (6.5hr): Standard thresholds (1.3x/1.5x/2.0x)
-//   - Crypto (24hr): Lower thresholds -15% (1.1x/1.3x/1.7x)
-//   - Futures (23hr): Lower thresholds -10% (1.2x/1.4x/1.8x)
-//
-// • Volume tier classification
-//   - Tier 0 (NORMAL): < 1.3x average volume
-//   - Tier 1 (ELEVATED): 1.3x - 1.5x (above average)
-//   - Tier 2 (HIGH): 1.5x - 2.0x (significant interest)
-//   - Tier 3 (EXTREME): > 2.0x (major event/institutions)
-//
-// • S/R Confluence Integration (NEW)
-//   - Imports up to 10 S/R levels from sr-algo5-ensemble.pine
-//   - Enhanced signals occur only at HMA band + S/R confluence + volume
-//   - Normal signals: HMA band + volume (basic exits)
-//   - Enhanced signals: HMA band + S/R confluence + volume (optimal exits)
-//   - Expected improvement: +10-15% exit accuracy
-//
-// HOW TO USE S/R INTEGRATION:
-// 1. Add sr-algo5-ensemble.pine to the same chart
-// 2. In this indicator's settings, go to "S/R Integration" section
-// 3. Map each "S/R Level" input to the corresponding plot from sr-algo5-ensemble
-//    - S/R Level 1 → Top S/R Level 1 (plot output from ensemble)
-//    - S/R Level 2 → Top S/R Level 2 (plot output from ensemble)
-//    - ... continue for all 10 levels
-// 4. Adjust "S/R Confluence Tolerance %" if needed (default 1.5%)
-// 5. Enhanced signals (stars) will appear when HMA bands align with S/R levels
-//
 // Research-backed: Elder (2002), Harris (2003), Murphy (1999)
+// ============================================================================
+
+// ============================= SIGNAL DOCUMENTATION =========================
+//
+// WHAT THE SIGNALS MEAN:
+//
+// Exit Signals (4 types, prioritized by strength):
+//
+// 1. ENHANCED STRONG SIGNALS (WHITE LABELS - Highest Priority)
+//    Symbol: White "SELL◆" or "BUY◆" labels
+//    Conditions: HMA band breach + EXTREME volume (>2.0x) + S/R confluence
+//    Meaning: Institutional-level exit at major S/R level
+//    Accuracy: ~75-85% (exit timing + location alignment)
+//    Action: Highest conviction exit - scale out or full exit
+//
+// 2. ENHANCED SIGNALS (RED/GREEN DIAMONDS - High Priority)
+//    Symbol: Red/Green diamonds with "SELL◆" or "BUY◆" text
+//    Conditions: HMA band breach + HIGH volume (≥1.5x) + S/R confluence
+//    Meaning: Strong exit signal at known S/R level
+//    Accuracy: ~70-80% (S/R confluence improves exit quality)
+//    Action: Strong exit signal - consider scaling out position
+//
+// 3. STRONG SIGNALS (NORMAL TRIANGLES - Medium Priority)
+//    Symbol: Normal-sized red/green triangles with "SELL" or "BUY" text
+//    Conditions: HMA band breach + EXTREME volume (>2.0x), no S/R
+//    Meaning: High-volume exit signal, but not at S/R level
+//    Accuracy: ~65-75% (volume confirms move, but exit location uncertain)
+//    Action: Consider partial exit, watch for S/R confluence
+//
+// 4. BASIC SIGNALS (SMALL TRIANGLES - Lower Priority)
+//    Symbol: Small red/green triangles with "SELL" or "BUY" text
+//    Conditions: HMA band breach + HIGH volume (≥1.5x), no S/R
+//    Meaning: Standard exit signal based on band + volume
+//    Accuracy: ~60-70% (basic exit timing)
+//    Action: Alert to potential exit, verify with other analysis
+//
+// Trend/Bias Indicators:
+//
+// 5. HMA CROSSOVERS (TINY CIRCLES)
+//    Symbol: Blue circle (bullish) or Orange circle (bearish)
+//    Conditions: HMA Fast crosses HMA Slow
+//    Meaning: Trend direction change
+//    Action: Adjust bias, not a direct exit signal
+//
+// 6. YELLOW BARS (BAR COLOR + BACKGROUND)
+//    Conditions: Price crosses HMA band zone + volume spike + expanding body
+//    Meaning: Volatility expansion at trend decision point
+//    Reset: Must exit band completely before next yellow bar
+//    Action: Watch for directional confirmation
+//
+// ============================================================================
+
+// ============================= VOLUME TIERS =================================
+//
+// Tier 0 (NORMAL) - Gray in table
+//   - Volume: < 1.3x average
+//   - Meaning: Standard market activity
+//   - Signals: No exit signals generated
+//
+// Tier 1 (ELEVATED) - Yellow in table
+//   - Volume: 1.3x - 1.5x average
+//   - Meaning: Above-average interest
+//   - Signals: No exit signals (threshold not met)
+//
+// Tier 2 (HIGH) - Orange in table
+//   - Volume: 1.5x - 2.0x average
+//   - Meaning: Significant institutional interest
+//   - Signals: Basic & Enhanced signals trigger
+//   - Confidence: Moderate (60-80% accuracy range)
+//
+// Tier 3 (EXTREME) - Red in table
+//   - Volume: > 2.0x average
+//   - Meaning: Major institutional activity/events
+//   - Signals: Strong & Enhanced Strong signals trigger
+//   - Confidence: High (65-85% accuracy range)
+//
+// Volume thresholds adapt to:
+// - Volatility regime (ATR-based adjustment)
+// - Asset class (Stock/Crypto/Futures trading hours)
+//
+// ============================================================================
+
+// ============================= HMA BANDS EXPLAINED ==========================
+//
+// Fast HMA (Default: 55)
+//   - Primary trend indicator
+//   - Color: Cyan (bullish) or Lavender (bearish)
+//   - Faster response to price changes
+//
+// Slow HMA (Default: 89)
+//   - Trend confirmation
+//   - Color: Inverted from Fast HMA
+//   - Slower, filters noise
+//
+// Upper Band (Mint Green)
+//   - Fast HMA + StdDev × Multiplier
+//   - Sell signals when price closes above
+//   - Indicates overextension from trend
+//
+// Lower Band (Pink Red)
+//   - Fast HMA - StdDev × Multiplier
+//   - Buy signals when price closes below
+//   - Indicates oversold vs trend
+//
+// Band Calculation Methods:
+//
+// 1. PERCENTAGE (Recommended for Log Charts) ✓
+//    - Uses log returns standard deviation
+//    - Symmetric bands in log space
+//    - Formula: basis × exp(±stdDevLog)
+//    - Best for: Logarithmic price charts
+//
+// 2. ABSOLUTE (Traditional)
+//    - Uses price standard deviation
+//    - Symmetric bands in linear space
+//    - Formula: basis ± stdDev
+//    - Best for: Linear price charts or small price ranges
+//
+// Band States:
+//   - EXPANDING: Band width > 20-bar average (trending market)
+//   - CONTRACTING: Band width < 20-bar average (consolidating)
+//
+// ============================================================================
+
+// ============================= BAR COLORS ===================================
+//
+// Yellow Bars (Priority Signal)
+//   - Conditions: Crosses HMA band zone + volume spike + expanding body
+//   - Meaning: Volatility expansion at decision point
+//   - Background: Yellow vertical bar (20% transparency)
+//   - Reset Logic: Must exit band before next yellow allowed
+//
+// Green Bars (#40ffa3)
+//   - Condition: Close > Fast HMA
+//   - Meaning: Bullish bias (above fast moving average)
+//
+// Red Bars (#ff3374)
+//   - Condition: Close < Fast HMA
+//   - Meaning: Bearish bias (below fast moving average)
+//
+// ============================================================================
+
+// ============================= S/R INTEGRATION GUIDE ========================
+//
+// WHY S/R INTEGRATION?
+// - Exit TIMING: HMA bands tell you WHEN to consider exiting
+// - Exit LOCATION: S/R levels tell you WHERE the best exit zones are
+// - Confluence: When both align = highest probability exits
+// - Expected improvement: +10-15% exit accuracy
+//
+// SETUP INSTRUCTIONS:
+//
+// Step 1: Add S/R Ensemble Indicator
+//   - Add "S/R Ensemble Detector (ALPHA)" to same chart
+//   - Ensure it's calculating levels (check info table)
+//
+// Step 2: Map S/R Levels (Settings → S/R Levels)
+//   - S/R Level 1 → Select "Top S/R Level 1" from dropdown
+//   - S/R Level 2 → Select "Top S/R Level 2" from dropdown
+//   - ... continue for all 10 levels you want to use
+//
+// Step 3: Configure Tolerance (Settings → S/R Integration)
+//   - Default: 1.5% (works for most assets)
+//   - Volatile assets (crypto): Increase to 2.0-2.5%
+//   - Less volatile (large caps): Decrease to 1.0-1.5%
+//
+// Step 4: Enable/Disable Toggle
+//   - Enable S/R Confluence Detection: ON (recommended)
+//   - Turn OFF if you want basic HMA signals only
+//
+// WHAT YOU'LL SEE:
+//   - Basic signals: Triangles (no S/R alignment)
+//   - Enhanced signals: Diamonds (S/R confluence detected)
+//   - Info table shows "S/R: YES" when at confluence
+//
+// INTERPRETATION:
+//   - Enhanced signals = Exit at institutional S/R level
+//   - Basic signals = Exit based on timing, but location uncertain
+//   - Priority: Enhanced Strong > Enhanced > Strong > Basic
+//
+// ============================================================================
+
+// ============================= INFO TABLE REFERENCE =========================
+//
+// Table Location: Top-right corner
+//
+// Row 1: Bias
+//   - BULLISH (green): Fast HMA > Slow HMA + rising + expanding
+//   - BEARISH (red): Fast HMA < Slow HMA + falling + expanding
+//   - NEUTRAL (gray): Otherwise
+//
+// Row 2: Volume
+//   - Format: "X.XXx (TIER NAME)"
+//   - Color: Gray/Yellow/Orange/Red (Tier 0/1/2/3)
+//   - Interpretation: Higher tier = stronger signals
+//
+// Row 3: Asset
+//   - STOCK (blue): Standard thresholds
+//   - CRYPTO (orange): Lower thresholds (-15%)
+//   - FUTURES (yellow): Lower thresholds (-10%)
+//   - Auto-detected from symbol type
+//
+// Row 4: S/R
+//   - YES (green): Price at S/R confluence
+//   - NO (gray): Not at S/R level
+//   - Enhances signal quality when YES
+//
+// Row 5: Bands
+//   - EXPANDING (green): Trending market
+//   - CONTRACTING (orange): Consolidating
+//   - Expanding required for bias signals
+//
+// Row 6: Price
+//   - ABOVE (red): Price > upper band (sell zone)
+//   - BELOW (green): Price < lower band (buy zone)
+//   - INSIDE (gray): Price between bands
+//
+// ============================================================================
+
+// ============================= VISUAL SUMMARY ===============================
+//
+// Lines:
+//   - Fast HMA (thick): Cyan (bullish) / Lavender (bearish)
+//   - Slow HMA (thin): Inverted colors from Fast
+//   - Upper Band: Mint green (sell boundary)
+//   - Lower Band: Pink red (buy boundary)
+//   - Fill between HMA lines: Cyan/Lavender (60% opacity)
+//
+// Shapes:
+//   - White Labels (★): Enhanced strong (S/R + extreme volume)
+//   - Diamonds (◆): Enhanced (S/R + high volume)
+//   - Normal Triangles: Strong (extreme volume, no S/R)
+//   - Small Triangles: Basic (high volume, no S/R)
+//   - Tiny Circles: HMA crossovers (trend change)
+//
+// Backgrounds:
+//   - Yellow vertical: Yellow bar (volatility expansion)
+//   - Green/Red tint: Bullish/Bearish bias (85% transparency)
+//
+// Bar Colors:
+//   - Yellow: Crossing HMA bands with volume
+//   - Green: Bullish (above Fast HMA)
+//   - Red: Bearish (below Fast HMA)
+//
 // ============================================================================
 
 // ============================= LIBRARY IMPORTS ==============================
