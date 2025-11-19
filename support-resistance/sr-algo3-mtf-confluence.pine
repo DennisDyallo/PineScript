@@ -92,6 +92,7 @@ minStrength = input.int(50, "Minimum Strength to Display", minval=40, maxval=85,
 maxLevels = input.int(20, "Maximum Levels to Display", minval=5, maxval=30, group="Display")
 showLabels = input.bool(true, "Show Strength Labels", group="Display")
 showTimeframeCount = input.bool(true, "Show Timeframe Count in Labels", group="Display")
+proximityBucket = input.float(0.03, "Proximity Bucket Size %", minval=0.01, maxval=0.10, step=0.01, group="Display", tooltip="Levels within this % range are considered 'nearby' and sorted by strength. Default 3% = levels at $100 and $103 sorted by strength, not distance")
 
 // Regime Detection (duplicated from TECH-DEBT.md)
 useRegimeFilter = input.bool(true, "Enable Regime-Aware Scoring", group="Regime Detection")
@@ -378,16 +379,38 @@ mergeAcrossTimeframes() =>
 if barstate.islast
     mtfLevels := mergeAcrossTimeframes()
 
-    // Sort by strength
+    // Sort by proximity buckets, then by strength within each bucket
+    // Rationale: Nearby levels (within proximityBucket %) are equally actionable,
+    // so prioritize quality. Distant levels sorted by proximity.
     if array.size(mtfLevels) > 1
         for i = 0 to array.size(mtfLevels) - 1
             endIndex = array.size(mtfLevels) - 2 - i
             if endIndex >= 0
                 for j = 0 to endIndex
-                    if array.get(mtfLevels, j).strength < array.get(mtfLevels, j + 1).strength
-                        temp = array.get(mtfLevels, j)
-                        array.set(mtfLevels, j, array.get(mtfLevels, j + 1))
-                        array.set(mtfLevels, j + 1, temp)
+                    levelA = array.get(mtfLevels, j)
+                    levelB = array.get(mtfLevels, j + 1)
+
+                    // Calculate distance from current price
+                    distA = math.abs(levelA.price - close) / close
+                    distB = math.abs(levelB.price - close) / close
+
+                    // Calculate if they're in the same "proximity bucket"
+                    distanceDiff = math.abs(distA - distB)
+
+                    // Swap if B is better than A
+                    shouldSwap = false
+
+                    // If both levels are "nearby" (within proximity bucket), sort by strength
+                    if distanceDiff < proximityBucket
+                        if levelB.strength > levelA.strength
+                            shouldSwap := true
+                    // If levels are in different buckets, sort by proximity
+                    else if distB < distA
+                        shouldSwap := true
+
+                    if shouldSwap
+                        array.set(mtfLevels, j, levelB)
+                        array.set(mtfLevels, j + 1, levelA)
 
 // ============================= TOUCH TRACKING & REJECTION ANALYSIS ==========
 // AUDIT FOLLOWUP FIX: Track touches on EVERY bar, not just barstate.islast

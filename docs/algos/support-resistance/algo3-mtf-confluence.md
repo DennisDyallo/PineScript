@@ -834,16 +834,39 @@ Tooltip on hover: "Timeframes: 1H,4H,D"
 
 **Default:** 20 (increased from 10 for better chart coverage)
 
-**Sorting:** By strength (strongest first)
+**Sorting:** By proximity buckets, then by strength within each bucket
+
+**Proximity Bucket Size:** 3% (settable 1-10%)
+
+**Rationale:** Levels within a small price range (default 3%) are equally actionable from a proximity perspective, so quality (strength) becomes the tiebreaker. Levels in different buckets sort by proximity.
 
 **Behavior:**
 
 ```
-If 30 levels detected but maxLevels = 20:
-    Display top 20 by strength
-    Hide bottom 10
+Example with proximityBucket = 3% and current price = $100:
 
-User can increase to 30 if desired
+Detected levels:
+- Level A: $100.50 (0.5% away), strength 70
+- Level B: $101.00 (1.0% away), strength 90  ← Within 3% of A
+- Level C: $104.00 (4.0% away), strength 95  ← Different bucket
+- Level D: $105.00 (5.0% away), strength 85  ← Within 3% of C
+
+Sorting logic:
+1. A and B are in same bucket (diff = 0.5% < 3%)
+   → Sort by strength: B (90) before A (70)
+2. C and D are in same bucket (diff = 1.0% < 3%)
+   → Sort by strength: C (95) before D (85)
+3. Between buckets: (A/B) closer than (C/D)
+
+Final order: B, A, C, D
+
+If 30 levels detected but maxLevels = 20:
+    Display top 20 using proximity bucket + strength logic
+    Hide bottom 10 (farthest levels)
+
+User can adjust proximityBucket:
+- Tight (1-2%): More emphasis on proximity
+- Loose (5-10%): More emphasis on strength
 ```
 
 **Performance consideration:**
