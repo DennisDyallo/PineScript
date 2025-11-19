@@ -109,21 +109,28 @@ basis = hmaFastLine
 // Calculate bands based on selected method
 float upperBand = na
 float lowerBand = na
-
+stdDev = ta.stdev(close, hmaFast) * stdDevMult
 if bandCalcMethod == "percentage"
-    // Percentage-based: TRUE logarithmic symmetry
-    // For log charts: log(upper) - log(basis) = log(basis) - log(lower)
-    // This means: upper/basis = basis/lower
-    stdDev = ta.stdev(close, hmaFast) * stdDevMult
-    stdDevPct = stdDev / basis  // Convert to percentage multiplier
+    // Percentage-based: Calculate stdDev of log returns for true log symmetry
+    // This makes BOTH bands different from absolute mode
 
-    // Apply symmetric logarithmic formula
-    upperBand := basis * (1 + stdDevPct)
-    lowerBand := basis / (1 + stdDevPct)  // Division for log symmetry!
+    // Calculate log returns (with na protection for first bar)
+    logReturns = close[1] > 0 ? math.log(close / close[1]) : 0.0
+    stdDevLog = ta.stdev(logReturns, hmaFast) * stdDevMult
+
+    // Fallback to absolute method if stdDevLog is invalid (early bars)
+    if na(stdDevLog) or stdDevLog == 0
+        
+        upperBand := basis + stdDev
+        lowerBand := basis - stdDev
+    else
+        // Apply exponential bands (symmetric in log space)
+        upperBand := basis * math.exp(stdDevLog)
+        lowerBand := basis * math.exp(-stdDevLog)
 else
     // Absolute: Traditional standard deviation in price units
     // This creates symmetric bands on linear charts
-    stdDev = ta.stdev(close, hmaFast) * stdDevMult
+    stdDev := ta.stdev(close, hmaFast) * stdDevMult
     upperBand := basis + stdDev
     lowerBand := basis - stdDev
 
@@ -213,7 +220,7 @@ hmaFastColor = hmaFastLine > hmaSlowLine ? color.new(#00D9FF, 0) : color.new(#B5
 hmaSlowColor = hmaFastLine > hmaSlowLine ? color.new(#B57EDC, 15) : color.new(#00D9FF, 15)  // Lavender when below fast, Cyan when above
 p1 = plot(hmaFastLine, "HMA Fast", color=hmaFastColor, linewidth=2)
 p2 = plot(showSlowHMA ? hmaSlowLine : na, "HMA Slow", color=hmaSlowColor, linewidth=1)
-plot(upperBand, "Upper Band", color=color.new(#00FFA3, 70), linewidth=1)  // Mint green
+plot(upperBand, "Upper Band", color=color.new(#00ffa2, 50), linewidth=1)  // Mint green
 plot(lowerBand, "Lower Band", color=color.new(#FF6B9D, 30), linewidth=1)  // Pink red
 
 // Fill between HMA 55 and HMA 89 (gradient effect - unchanged)
@@ -290,8 +297,8 @@ barcolor(colorBars ?
       close > hmaFastLine ? color.new(#40ffa3, 0) : color.new(#ff3374, 0)) : na,
      title="HMA Bar Colors")
 
-// Yellow background vertical for yellow bars (10% transparency)
-bgcolor(isYellowBar ? color.new(color.yellow, 90) : na, title="Yellow Bar Background")
+// Yellow background vertical for yellow bars (20% transparency)
+bgcolor(isYellowBar ? color.new(color.yellow, 80) : na, title="Yellow Bar Background")
 
 // Buy/Sell signals - Basic (triangles)
 plotshape(sellSignalStrong and not sellSignalStrongEnhanced, "Sell Signal (Strong)", shape.triangledown, location.abovebar,
