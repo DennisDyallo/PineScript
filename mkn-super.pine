@@ -238,29 +238,38 @@ isBearish = direction > 0  // Price below Supertrend = downtrend
 // Benefit: Creates volatility-adjusted channel that adapts to market conditions
 supertrendMirror = 2 * close - supertrend
 
-// Color coding for visual clarity
-trendColor = isBullish ? color.new(#00E676, 0) : color.new(#FF5252, 0)  // Green : Red
-bgColor = isBullish ? color.new(#00E676, 95) : color.new(#FF5252, 95)   // Subtle background
+// Color coding matching HMA style (Cyan/Lavender gradient)
+// When bullish: Supertrend is Cyan, Mirror is Lavender (inverted like HMA Slow)
+// When bearish: Supertrend is Lavender, Mirror is Cyan (inverted)
+trendColor = isBullish ? color.new(#00D9FF, 0) : color.new(#B57EDC, 0)  // Cyan : Lavender
+mirrorColor = isBullish ? color.new(#B57EDC, 15) : color.new(#00D9FF, 15)  // Inverted (like HMA Slow)
+bgColor = isBullish ? color.new(#00D9FF, 95) : color.new(#B57EDC, 95)   // Subtle background
 
-// Plot Supertrend line on main chart (3px width for visibility)
+// Plot Supertrend line on main chart (2px width, HMA Fast style)
 plot(showSupertrend ? supertrend : na, "Supertrend Line",
      color=trendColor,
-     linewidth=3,
+     linewidth=2,
      style=plot.style_line)
 
 // Plot Mirrored Supertrend (opposite side resistance/support)
-// Color is inverted: if main is green (support), mirror is red (resistance) and vice versa
-mirrorColor = isBullish ? color.new(#FF5252, 30) : color.new(#00E676, 30)  // Red in uptrend, Green in downtrend
+// Uses dotted step line style for differentiation
 plot(showSupertrendMirror ? supertrendMirror : na, "Mirrored Supertrend",
      color=mirrorColor,
-     linewidth=2,
-     style=plot.style_line)
+     linewidth=1,
+     style=plot.style_stepline)
 
 // Background fill to emphasize trend direction (95% transparency)
 bgcolor(showTrendBackground ? bgColor : na, title="Trend Background")
 
-// Bar coloring by trend (HMA-style colors: green above, red below)
-barcolor(isBullish ? color.new(#40ffa3, 0) : color.new(#ff3374, 0), title="Trend Bar Colors")
+// Bar coloring using plotcandle (allows user customization)
+plotColor = isBullish ? color.new(#40ffa3, 0) : color.new(#ff3374, 0)
+plotcandle(open, high, low, close,
+           color=plotColor,
+           wickcolor=plotColor,
+           bordercolor=plotColor,
+           editable=false,
+           title="Bars Color",
+           display=display.pane)
 
 // ============================================================================
 // SECTION 3: COMPONENT 2 - S/R LEVEL PROXIMITY DETECTION
@@ -766,6 +775,11 @@ plotshape(showExitSignals and showMomentumWeak and momentumExhausted, "Momentum 
           shape.circle, location.abovebar,
           color.new(#FF9800, 0), size=size.small, text="WEAK")
 
+// Exit Rule 4: Volume Divergence - Yellow triangle down, small
+plotshape(showExitSignals and showVolumeDivergence and volumeDivergence, "Volume Divergence",
+          shape.triangledown, location.abovebar,
+          color.new(#FFEB3B, 0), size=size.small, text="VOL DIV")
+
 // ------------------------------------------------------------------------
 // ENTRY SIGNAL MARKERS (Below Bar)
 // ------------------------------------------------------------------------
@@ -793,20 +807,6 @@ plotshape(showEntrySignals and showBuySignal and buySignal and entrySignalCount 
 plotshape(showEntrySignals and showMomentumBuilding and momentumBuilding, "Momentum Building",
           shape.circle, location.belowbar,
           color.new(#76FF03, 0), size=size.small, text="MOM+")
-
-// ------------------------------------------------------------------------
-// CUSTOM LABELS (Can stay in conditional blocks)
-// ------------------------------------------------------------------------
-
-// Exit Rule 4: Volume Divergence - Yellow label (above bar)
-if showExitSignals and showVolumeDivergence and volumeDivergence
-    rangingSuffix = (showRangingWarnings and isRanging) ? " (RANGING)" : ""
-    labelText = "⚠️ VOLUME DIVERGENCE" + rangingSuffix
-    label.new(bar_index, high * 1.02, labelText,
-              color=color.new(#FFEB3B, 20),
-              textcolor=color.black,
-              style=label.style_label_down,
-              size=size.normal)
 
 // ------------------------------------------------------------------------
 // ENTRY SUPPLEMENTARY LABELS (Below Bar) - Dynamic Stacking
