@@ -1,0 +1,22 @@
+change claude.md, so its not the main place for storing session notes
+all the isntutitional algos. they need the same klabeling and visual indication of their bias, bullish bearish
+we also want to incorporate them into the trading strategy somehow
+
+trim the institutional algos, ensemble never agrees on anything , regardles of timeframe, even though the algos say they are bullish?
+
+performance on SR A5 ENsemble
+
+filtering on WHITE buy signals?? or should they fade after each? so that finally they disappear and thats the signal?
+
+the algo MTF, how does the auto work? up or down from current tf?   
+
+add indicator on HMA algos, when price has closed from outside the HMA BB bands and reenters and closes inside, thats a signal.
+psosible color bars red from there, or purple
+how to uss the bullish or bearish cross?
+
+
+Super Algo
+TODO: 
+
+MIrrored Super Trend should be percentage (toggleable) based to account for log charts. Proper implementation in @mkn-hma-alt.pine (check HMA BB percentage based algorithm)
+But I need you to push back on this if it is unsound, according to research. 
