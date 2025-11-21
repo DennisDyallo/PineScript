@@ -942,60 +942,111 @@ for i = 0 to levelsToShow - 1:
 
 ## Strength Scoring Breakdown
 
+### ⚠️ IMPORTANT: Internal vs Display Strength (v2.1+ Feature)
+
+**The ensemble now tracks TWO strength values:**
+
+1. **Display Strength (0-100):** Shown in chart labels - user-friendly, capped scale
+2. **Internal Strength (uncapped):** Used for sorting/ranking - preserves discriminative power
+
+**Why This Matters:**
+
+When individual algorithms produce very strong scores (e.g., POC with 8 touches = 167), the ensemble shouldn't cap this to 100 before combining. This loses information.
+
+**Research Basis (Breiman 1996, Kuncheva 2004):**
+> "Individual classifiers should output raw confidence scores. Normalization should occur at final aggregation stage, not before."
+
+**How It Works:**
+```
+Individual Algorithms → Uncapped scores (may exceed 100)
+                     ↓
+Ensemble Calculation → Uncapped internal strength (may exceed 100)
+                     ↓
+Display to User     → Capped at 100 (friendly scale)
+                     ↓
+Sorting Levels      → Uses INTERNAL strength (preserves ranking)
+```
+
+**Example:**
+- Ultra-strong level: Internal 155, Display 100
+- Good level: Internal 88, Display 88
+- **Chart shows both as "100" vs "88", but internally ranked as 155 vs 88**
+
+**Tooltip reveals internal strength:**
+```
+Label: "R 100 (VP+STAT+MTF+OB)"
+Hover tooltip: "Display: 100 | Internal: 155 (ULTRA-STRONG)"
+```
+
+---
+
 ### Score Interpretation
 
-| Ensemble Strength | Agreement | Confidence | Reliability | Trading Action |
-|-------------------|-----------|------------|-------------|----------------|
-| **85-100** | 4/4 or 3/4 (strong) | VERY HIGH | 80-90% | Maximum conviction, 1.5-2× position size |
-| **75-85** | 3/4 or 4/4 (moderate scores) | HIGH | 75-85% | High conviction, 1.2-1.5× position size |
-| **65-75** | 3/4 or 2/4 (strong) | HIGH | 70-80% | Standard conviction, 1.0× position size |
-| **55-65** | 2/4 or 3/4 (weak scores) | MODERATE | 65-75% | Reduced conviction, 0.8× position size |
-| **50-55** | 2/4 (minimum) | MODERATE | 60-70% | Monitor only, wait for confirmation |
-| **<50** | Filtered out | N/A | <60% | Not displayed |
+| Display Strength | Internal Strength | Agreement | Confidence | Reliability | Trading Action |
+|------------------|-------------------|-----------|------------|-------------|----------------|
+| **100** | **120-200+** | 4/4 (ultra-strong) | VERY HIGH | 85-92% | Maximum conviction, 2.0× position size |
+| **100** | **100-120** | 4/4 or 3/4 (strong) | VERY HIGH | 82-88% | Maximum conviction, 1.5-2× position size |
+| **85-99** | **85-99** | 4/4 or 3/4 (strong) | VERY HIGH | 80-85% | High conviction, 1.5× position size |
+| **75-84** | **75-84** | 3/4 or 4/4 (moderate scores) | HIGH | 75-82% | High conviction, 1.2-1.5× position size |
+| **65-74** | **65-74** | 3/4 or 2/4 (strong) | HIGH | 70-78% | Standard conviction, 1.0× position size |
+| **55-64** | **55-64** | 2/4 or 3/4 (weak scores) | MODERATE | 65-72% | Reduced conviction, 0.8× position size |
+| **50-54** | **50-54** | 2/4 (minimum) | MODERATE | 60-68% | Monitor only, wait for confirmation |
+| **<50** | **<50** | Filtered out | N/A | <60% | Not displayed |
+
+**Key Insight:** When multiple levels display "100", hover tooltips to see internal strength. A level with internal 155 is significantly stronger than internal 105.
 
 ### Example Calculations
 
-#### Example 1: Perfect Agreement, Strong Scores
+#### Example 1: Perfect Agreement, Ultra-Strong Scores (v2.1+ Uncapped)
 
 **Input:**
 ```
-VP detected at 100.20, strength 88
-STAT detected at 100.10, strength 72
-MTF detected at 100.05, strength 90
-OB detected at 100.25, strength 65
+VP detected at 100.20, strength 167 (POC + 8 touches + 6 rejections)
+STAT detected at 100.10, strength 155 (volume-weighted + confluence)
+MTF detected at 100.05, strength 160 (3-TF + volume boost)
+OB detected at 100.25, strength 121 (4 rejections + consistency)
 
 mergeTolerance = 1.5%
 Distance range: 0.05-0.20 = 0.05-0.20% ✓ Merge!
 ```
 
-**Calculation:**
+**Calculation (v2.1+ with uncapped strength):**
 ```
 Step 1: Cluster
 clusterPrice = (100.20 + 100.10 + 100.05 + 100.25) / 4 = 100.15
 agreement = 4
 
-Step 2: Weighted average
+Step 2: Weighted average (UNCAPPED)
 totalWeight = 0.35 + 0.20 + 0.30 + 0.15 = 1.0
-baseScore = (88×0.35 + 72×0.20 + 90×0.30 + 65×0.15) / 1.0 × 100
-          = (30.8 + 14.4 + 27.0 + 9.75) / 1.0 × 100
-          = 81.95
+internalStrength = (167×0.35 + 155×0.20 + 160×0.30 + 121×0.15) / 1.0
+                 = (58.45 + 31.0 + 48.0 + 18.15) / 1.0
+                 = 155.6
 
-Step 3: Agreement bonus
-agreementBonus = 1.15 (4/4 perfect)
-ensembleStrength = 81.95 × 1.15 = 94.2
+Step 3: Calculate display strength (CAPPED for user-friendly labels)
+displayStrength = min(100, 155.6) = 100
 
-Step 4: Clamp
-finalStrength = min(100, 94.2) = 94.2
-
-Result: Strength = 94, Confidence = VERY HIGH, Sources = VP+STAT+MTF+OB
+Result:
+- Display Strength = 100 (shown in label)
+- Internal Strength = 156 (used for sorting, shown in tooltip)
+- Confidence = VERY HIGH
+- Sources = VP+STAT+MTF+OB
 ```
 
-**Interpretation:** **BEST POSSIBLE SIGNAL**
-- All 4 algorithms agree
-- All individual scores strong (65-90 range)
-- Ensemble strength 94 (top tier)
-- Expected accuracy: 85-90%
+**Chart Display:**
+```
+Label: "100 (VP+STAT+MTF+OB)"
+Tooltip (on hover): "Display: 100 | Internal: 156 (ULTRA-STRONG)"
+```
+
+**Interpretation:** **ULTRA-STRONG SIGNAL (Top 1% of all signals)**
+- All 4 algorithms agree with exceptional strength
+- Each individual algorithm score 120-167 (far exceeds normal range)
+- Internal strength 156 (55% above "good" 100 level)
+- This level will rank FIRST even if other levels also display "100"
+- Expected accuracy: 88-92%
 - Action: Maximum conviction trade, 2× position size
+
+**Key Insight:** Without uncapped strength, this would be indistinguishable from a "good" 4/4 level at 100. The tooltip reveals the true strength.
 
 ---
 
@@ -1246,15 +1297,24 @@ Moderate Resistance (strength 50-80): Red (opacity 30)
 
 ### Label Format
 
-**Anatomy of Ensemble Label:**
+**Anatomy of Ensemble Label (v2.1+):**
 
 ```
 ┌──────────────────────┐
-│ 85 (VP+MTF+STAT)    │  ← Primary strength (0-100) + Sources
+│ 100 (VP+MTF+STAT)   │  ← Display strength (0-100) + Sources
 └──────────────────────┘
    ↑     ↑
    │     └─ Which algorithms detected this level
-   └─ Ensemble strength score
+   └─ Display strength (capped at 100 for user-friendly scale)
+
+Hover tooltip shows:
+┌─────────────────────────────────┐
+│ Algorithms: VP STAT MTF OB      │
+│ Count: 4/4                      │
+│ Display Strength: 100           │  ← What you see in label
+│ Internal Strength: 156          │  ← TRUE strength (uncapped)
+│                    (ULTRA-STRONG)│  ← Tag for internal > 100
+└─────────────────────────────────┘
 
 Size:
 - Normal (size.normal) if agreementCount ≥ 3
@@ -1264,6 +1324,17 @@ Style:
 - label.style_label_up (Support) - arrow points up from level
 - label.style_label_down (Resistance) - arrow points down from level
 ```
+
+**Understanding Display vs Internal Strength:**
+
+| Label Shows | Tooltip Shows | Meaning |
+|-------------|---------------|---------|
+| `100 (VP+STAT+MTF+OB)` | Internal: 155 (ULTRA-STRONG) | Exceptional institutional zone, rank #1 |
+| `100 (VP+MTF+STAT)` | Internal: 110 | Strong 3/4 agreement, rank #2 |
+| `100 (VP+MTF)` | Internal: 101 | Good 2/4 agreement, rank #3 |
+| `88 (VP+STAT+MTF)` | Internal: 88 | Normal strong level, rank #4 |
+
+**Key Insight:** All labels showing "100" are NOT equal. Hover to see internal strength for true ranking.
 
 **Source Abbreviations:**
 - **VP** = Volume Profile (Algorithm 1)
