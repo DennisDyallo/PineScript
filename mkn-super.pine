@@ -99,6 +99,10 @@ showSupertrend = input.bool(true, "Show Supertrend Line",
  group="Display: Trend",
  tooltip="Display the Supertrend line on chart (3px colored line)")
 
+showSupertrendMirror = input.bool(true, "Show Mirrored Supertrend",
+ group="Display: Trend",
+ tooltip="Display mirrored Supertrend line (resistance in uptrend, support in downtrend). Uses same ATR-based distance on opposite side.")
+
 showTrendBackground = input.bool(true, "Show Trend Background",
  group="Display: Trend",
  tooltip="Display subtle background color for trend direction")
@@ -222,6 +226,18 @@ inPosition = input.bool(false, "Currently In Position?",
 isBullish = direction < 0  // Price above Supertrend = uptrend
 isBearish = direction > 0  // Price below Supertrend = downtrend
 
+// Mirrored Supertrend: Creates resistance (bullish) or support (bearish)
+// Formula: 2 × close - supertrend (reflects Supertrend across current price)
+// Scientific basis: Maintains same ATR-based distance on opposite side
+//
+// Example (Bullish trend):
+//   - Supertrend at $95 (support, below $100 close)
+//   - Mirror: 2×100 - 95 = $105 (resistance, above close)
+//   - Distance: $5 on both sides (ATR × Multiplier)
+//
+// Benefit: Creates volatility-adjusted channel that adapts to market conditions
+supertrendMirror = 2 * close - supertrend
+
 // Color coding for visual clarity
 trendColor = isBullish ? color.new(#00E676, 0) : color.new(#FF5252, 0)  // Green : Red
 bgColor = isBullish ? color.new(#00E676, 95) : color.new(#FF5252, 95)   // Subtle background
@@ -232,8 +248,19 @@ plot(showSupertrend ? supertrend : na, "Supertrend Line",
      linewidth=3,
      style=plot.style_line)
 
+// Plot Mirrored Supertrend (opposite side resistance/support)
+// Color is inverted: if main is green (support), mirror is red (resistance) and vice versa
+mirrorColor = isBullish ? color.new(#FF5252, 30) : color.new(#00E676, 30)  // Red in uptrend, Green in downtrend
+plot(showSupertrendMirror ? supertrendMirror : na, "Mirrored Supertrend",
+     color=mirrorColor,
+     linewidth=2,
+     style=plot.style_line)
+
 // Background fill to emphasize trend direction (95% transparency)
 bgcolor(showTrendBackground ? bgColor : na, title="Trend Background")
+
+// Bar coloring by trend (HMA-style colors: green above, red below)
+barcolor(isBullish ? color.new(#40ffa3, 0) : color.new(#ff3374, 0), title="Trend Bar Colors")
 
 // ============================================================================
 // SECTION 3: COMPONENT 2 - S/R LEVEL PROXIMITY DETECTION
@@ -292,7 +319,7 @@ distToLevel3 = math.abs(close - srLevel3) / close * 100
 // Level 1: Strongest - White solid line (2px)
 plot(showSRLevels ? srLevel1 : na, "S/R Level 1",
      color=color.new(#FFFFFF, 0),
-     linewidth=23,
+     linewidth=2,
      style=plot.style_line)
 
 // Level 2: Medium - Gray dashed line (1.5px, 30% transparency)
@@ -452,17 +479,23 @@ macdState = isBullish ?
 
 momentumHealth = (volScore * volWeight) + (rsiScore * rsiWeight) + (macdScore * macdWeight)
 
-// Classification into 4 states
+// Phase 8: Neutral Zone Detection (15-point zone between exit and entry thresholds)
+inNeutralZone = momentumHealth >= exitMomentumThreshold and momentumHealth < entryMomentumThreshold
+neutralZoneText = inNeutralZone ? " [NEUTRAL ZONE]" : ""
+
+// Classification into 5 states (added neutral zone)
 momentumState =
  momentumHealth >= 75 ? "STRONG" :
- momentumHealth >= 50 ? "HEALTHY" :
+ momentumHealth >= entryMomentumThreshold ? "HEALTHY" :
+ inNeutralZone ? "NEUTRAL" :
  momentumHealth >= 25 ? "WEAKENING" :
      "EXHAUSTED"
 
 // Color coding for visual feedback
 momentumColor =
  momentumHealth >= 75 ? color.new(#00E676, 0) :  // Green - Strong
- momentumHealth >= 50 ? color.new(#C6FF00, 0) :  // Lime - Healthy
+ momentumHealth >= entryMomentumThreshold ? color.new(#C6FF00, 0) :  // Lime - Healthy
+ inNeutralZone ? color.new(#FFC107, 0) :  // Amber - Neutral Zone
  momentumHealth >= 25 ? color.new(#FFEB3B, 0) :  // Yellow - Weakening
  color.new(#FF5252, 0)                            // Red - Exhausted
 
@@ -632,6 +665,7 @@ anyEntrySignal = trendEstablished or buySignal or momentumBuilding
 // Entry Decision with Confluence Display
 // ----------------------------------------------------------------------------
 
+// Phase 8: Position-aware entry decisions with neutral zone clarity
 entryDecision =
      not isBullish ? "NO ENTRY (Bearish Trend)" :
      buySignal and entrySignalCount >= 3 ? "BUY+++ (Multiple Confirmations)" :
@@ -641,7 +675,7 @@ entryDecision =
      trendEstablished ? "ENTRY (Trend Confirmed)" :
      momentumBuilding and entrySignalCount >= 2 ? "WATCH++ (Momentum Building)" :
      momentumBuilding ? "WATCH (Momentum Building)" :
-     momentumHealth >= entryMomentumThreshold and momentumHealth < 75 ? "WAIT (Neutral Zone)" :
+     inNeutralZone ? "WAIT [Neutral Zone 50-65]" :
      momentumHealth >= 75 ? "WAIT (At resistance?)" :
      "WAIT (Build momentum)"
 
@@ -673,8 +707,8 @@ entryColor =
 // Standard calculation: ADX(14)
 adxLength = 14
 
-// Calculate True Range
-tr = math.max(math.max(high - low, math.abs(high - close[1])), math.abs(low - close[1]))
+// Calculate True Range (with NA protection for first bar)
+tr = na(close[1]) ? (high - low) : math.max(math.max(high - low, math.abs(high - close[1])), math.abs(low - close[1]))
 
 // Calculate Directional Movement
 plusDM = high - high[1] > low[1] - low ? math.max(high - high[1], 0) : 0
@@ -766,7 +800,8 @@ plotshape(showEntrySignals and showMomentumBuilding and momentumBuilding, "Momen
 
 // Exit Rule 4: Volume Divergence - Yellow label (above bar)
 if showExitSignals and showVolumeDivergence and volumeDivergence
-    labelText = "⚠️ VOLUME DIVERGENCE" + (showRangingWarnings and isRanging ? " (RANGING)" : "")
+    rangingSuffix = (showRangingWarnings and isRanging) ? " (RANGING)" : ""
+    labelText = "⚠️ VOLUME DIVERGENCE" + rangingSuffix
     label.new(bar_index, high * 1.02, labelText,
               color=color.new(#FFEB3B, 20),
               textcolor=color.black,
@@ -941,30 +976,36 @@ if showDashboard and barstate.islast
                text_size=size.tiny)
 
     // ------------------------------------------------------------------------
-    // Row 8: Exit Decision
+    // Row 8: Exit Decision (Phase 8: Emphasized when in position)
     // ------------------------------------------------------------------------
-    table.cell(dashboard, 0, 8, "EXIT",
-               bgcolor=color.new(exitColor, 50),
+    exitTextSize = inPosition ? size.normal : size.small  // Larger when in position
+    exitBgOpacity = inPosition ? 30 : 50  // More visible when in position
+
+    table.cell(dashboard, 0, 8, inPosition ? "EXIT ★" : "EXIT",
+               bgcolor=color.new(exitColor, exitBgOpacity),
                text_color=color.white,
-               text_size=size.small)
+               text_size=exitTextSize)
 
     table.cell(dashboard, 1, 8, exitDecision,
-               bgcolor=color.new(exitColor, 50),
+               bgcolor=color.new(exitColor, exitBgOpacity),
                text_color=color.white,
-               text_size=size.small)
+               text_size=exitTextSize)
 
     // ------------------------------------------------------------------------
-    // Row 9: Entry Signal
+    // Row 9: Entry Signal (Phase 8: Emphasized when NOT in position)
     // ------------------------------------------------------------------------
-    table.cell(dashboard, 0, 9, "ENTRY",
-               bgcolor=color.new(entryColor, 50),
+    entryTextSize = not inPosition ? size.normal : size.small  // Larger when out of position
+    entryBgOpacity = not inPosition ? 30 : 50  // More visible when out of position
+
+    table.cell(dashboard, 0, 9, not inPosition ? "ENTRY ★" : "ENTRY",
+               bgcolor=color.new(entryColor, entryBgOpacity),
                text_color=color.white,
-               text_size=size.small)
+               text_size=entryTextSize)
 
     table.cell(dashboard, 1, 9, entryDecision,
-               bgcolor=color.new(entryColor, 50),
+               bgcolor=color.new(entryColor, entryBgOpacity),
                text_color=color.white,
-               text_size=size.small)
+               text_size=entryTextSize)
 
 // ============================================================================
 // SECTION 10: ALERT CONDITIONS
