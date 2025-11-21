@@ -167,7 +167,8 @@ safeDivide(float num, float denom, float default) =>
 // Unified level type for ensemble
 type EnsembleLevel
     float price
-    float strength
+    float displayStrength    // 0-100 capped (for user-friendly labels)
+    float internalStrength   // Uncapped (for sorting/ranking - preserves discriminative power)
     string levelType
     int algorithmCount
     bool fromVP
@@ -294,7 +295,7 @@ if enableAlgo1 and (barstate.isconfirmed or barstate.islast)
         recencyBonus = barsSinceTouch < 50 ? (50 - barsSinceTouch) * 0.3 : 0
 
         pocFinalStrength = baseStrength + touchBonus + rejectionBonus + recencyBonus
-        pocFinalStrength := math.max(0, math.min(100, pocFinalStrength))
+        pocFinalStrength := math.max(0, pocFinalStrength)  // Allow >100 for discriminative power
 
         pocLevel = VPLevel.new(
              price = pocPrice,
@@ -342,7 +343,7 @@ if enableAlgo1 and (barstate.isconfirmed or barstate.islast)
         vahRecencyBonus = vahRecency < 50 ? (50 - vahRecency) * 0.3 : 0
 
         vahFinalStrength = vahBaseStrength + vahTouchBonus + vahRejectionBonus + vahRecencyBonus
-        vahFinalStrength := math.max(0, math.min(100, vahFinalStrength))
+        vahFinalStrength := math.max(0, vahFinalStrength)  // Allow >100 for discriminative power
 
         vahLevel = VPLevel.new(
              price = vahPrice,
@@ -366,7 +367,7 @@ if enableAlgo1 and (barstate.isconfirmed or barstate.islast)
         valRecencyBonus = valRecency < 50 ? (50 - valRecency) * 0.3 : 0
 
         valFinalStrength = valBaseStrength + valTouchBonus + valRejectionBonus + valRecencyBonus
-        valFinalStrength := math.max(0, math.min(100, valFinalStrength))
+        valFinalStrength := math.max(0, valFinalStrength)  // Allow >100 for discriminative power
 
         valLevel = VPLevel.new(
              price = valPrice,
@@ -404,7 +405,7 @@ if enableAlgo1 and (barstate.isconfirmed or barstate.islast)
                     hvnRecencyBonus = hvnRecency < 50 ? (50 - hvnRecency) * 0.3 : 0
 
                     hvnFinalStrength = hvnBaseStrength + hvnTouchBonus + hvnRejectionBonus + hvnRecencyBonus
-                    hvnFinalStrength := math.max(0, math.min(100, hvnFinalStrength))
+                    hvnFinalStrength := math.max(0, hvnFinalStrength)  // Allow >100 for discriminative power
 
                     hvnLevel = VPLevel.new(
                          price = hvnPrice,
@@ -602,7 +603,7 @@ if enableAlgo2 and barstate.islast
 
                     // Final strength (multiplicative confluence)
                     strength = baseStrength * confluenceMultiplier * regimeMultiplier
-                    strength := math.min(100, strength)
+                    // Allow >100 for discriminative power (no cap)
 
                     if strength >= 50
                         level = StatLevel.new(
@@ -673,7 +674,7 @@ if enableAlgo2 and barstate.islast
 
                     // Final strength (multiplicative confluence)
                     strength = baseStrength * confluenceMultiplier * regimeMultiplier
-                    strength := math.min(100, strength)
+                    // Allow >100 for discriminative power (no cap)
 
                     if strength >= 50
                         level = StatLevel.new(
@@ -872,7 +873,7 @@ if enableAlgo3 and barstate.islast
                 distanceMultiplier = distance < 0.05 ? 1.0 : math.max(0.6, 1.0 - distance)
 
                 finalStrength = (baseStrength + confluenceBonus + touchBonus) * distanceMultiplier * regimeMultiplier * volumeBoost
-                finalStrength := math.min(100, finalStrength)
+                // Allow >100 for discriminative power (no cap)
 
                 if finalStrength >= 50
                     level = MTFLevel.new(
@@ -1065,7 +1066,7 @@ if enableAlgo4 and barstate.islast
                 distanceMultiplier = math.exp(-math.pow(distance / 0.05, 2))
 
                 finalStrength = baseStrength * distanceMultiplier * regimeMultiplier * timeDecayMultiplier * wickConsistencyMultiplier
-                finalStrength := math.min(100, math.max(0, finalStrength))
+                finalStrength := math.max(0, finalStrength)  // Allow >100 for discriminative power
 
                 if finalStrength >= 40
                     level = OBLevel.new(
@@ -1190,8 +1191,11 @@ if barstate.islast
                         totalWeight += obWeight
                         fromOB := true
 
-                // Weighted ensemble strength
-                baseScore = totalWeight > 0 ? ((vpScore * vpWeight) + (statScore * statWeight) + (mtfScore * mtfWeight) + (obScore * obWeight)) / totalWeight : 0.0
+                // Weighted ensemble strength (UNCAPPED for discriminative power)
+                internalStrength = totalWeight > 0 ? ((vpScore * vpWeight) + (statScore * statWeight) + (mtfScore * mtfWeight) + (obScore * obWeight)) / totalWeight : 0.0
+
+                // Display strength (capped at 100 for user-friendly labels)
+                displayStrength = math.min(100, internalStrength)
 
                 // Count algorithms
                 algoCount = (fromVP ? 1 : 0) + (fromSTAT ? 1 : 0) + (fromMTF ? 1 : 0) + (fromOB ? 1 : 0)
@@ -1202,16 +1206,17 @@ if barstate.islast
                     totalPrice += array.get(cluster, k).price
                 avgPrice = totalPrice / array.size(cluster)
 
-                // Apply proximity filter
+                // Apply proximity filter (use displayStrength for min threshold)
                 distance = calcDistance(avgPrice, close)
 
-                if baseScore >= minStrength and distance <= maxProximity
-                    // Determine color
-                    levelColor = currentLevel.levelType == "R" ? (baseScore >= 75 ? color.new(color.red, 0) : color.new(color.orange, 20)) : (baseScore >= 75 ? color.new(color.green, 0) : color.new(color.lime, 20))
+                if displayStrength >= minStrength and distance <= maxProximity
+                    // Determine color (use displayStrength for color thresholds)
+                    levelColor = currentLevel.levelType == "R" ? (displayStrength >= 75 ? color.new(color.red, 0) : color.new(color.orange, 20)) : (displayStrength >= 75 ? color.new(color.green, 0) : color.new(color.lime, 20))
 
                     ensLevel = EnsembleLevel.new(
                          price = avgPrice,
-                         strength = baseScore,
+                         displayStrength = displayStrength,      // 0-100 capped (for labels)
+                         internalStrength = internalStrength,    // Uncapped (for sorting)
                          levelType = currentLevel.levelType,
                          algorithmCount = algoCount,
                          fromVP = fromVP,
@@ -1239,9 +1244,9 @@ if barstate.islast
 
                         shouldSwap = false
 
-                        // Same proximity bucket: sort by strength
+                        // Same proximity bucket: sort by INTERNAL strength (preserves discriminative power)
                         if distanceDiff < proximityBucket
-                            if levelB.strength > levelA.strength
+                            if levelB.internalStrength > levelA.internalStrength
                                 shouldSwap := true
                         // Different buckets: sort by proximity
                         else if distB < distA
@@ -1277,7 +1282,7 @@ if barstate.islast and array.size(ensembleLevels) > 0
 
         // Draw label
         if showLabels
-            labelText = level.levelType + " " + str.tostring(math.round(level.strength))
+            labelText = level.levelType + " " + str.tostring(math.round(level.displayStrength))
 
             // Build algorithm source string for label (e.g., "VP+MTF")
             if showAlgoSources
@@ -1293,7 +1298,7 @@ if barstate.islast and array.size(ensembleLevels) > 0
 
                 labelText += " (" + algoString + ")"
 
-            // Build tooltip (full algorithm names)
+            // Build tooltip (show BOTH display and internal strength for power users)
             sources = ""
             if level.fromVP
                 sources += "VP "
@@ -1304,9 +1309,12 @@ if barstate.islast and array.size(ensembleLevels) > 0
             if level.fromOB
                 sources += "OB "
 
+            // Show internal strength in tooltip (reveals "super 100s")
             tooltipText = "Algorithms: " + sources + "\n" +
                          "Count: " + str.tostring(level.algorithmCount) + "/4\n" +
-                         "Strength: " + str.tostring(math.round(level.strength))
+                         "Display Strength: " + str.tostring(math.round(level.displayStrength)) + "\n" +
+                         "Internal Strength: " + str.tostring(math.round(level.internalStrength)) +
+                         (level.internalStrength > 100 ? " (ULTRA-STRONG)" : "")
 
             label.new(
                  bar_index + 10,
