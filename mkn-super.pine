@@ -45,135 +45,149 @@ indicator("MKN Super", shorttitle="MKN-S", overlay=true)
 // Supertrend parameters with asset-specific auto-adjustment
 // Research: Seban (2009), default ATR(10) and 3.0 multiplier
 
-atrLength = input.int(10, "ATR Length",
-    minval=5, maxval=20,
-    group="Trend Detection",
-    tooltip="Periods for ATR calculation. Default: 10 (universal)")
+atrLength = input.int(10, "ATR Length", minval=5, maxval=20, group="Trend Detection", tooltip="Periods for ATR calculation. Default: 10 (universal)")
 
-// Auto-detect asset type and suggest multiplier
-assetMultiplier = syminfo.type == "crypto" ? 3.5 :
-                  syminfo.type == "futures" ? 3.0 :
-                  2.5  // stocks (less volatile)
-
-multiplier = input.float(assetMultiplier, "Supertrend Multiplier",
-    minval=2.0, maxval=4.0, step=0.1,
-    group="Trend Detection",
-    tooltip="Auto-adjusted by asset type: Crypto 3.5, Futures 3.0, Stocks 2.5")
+multiplier = input.float(3.0, "Supertrend Multiplier", minval=2.0, maxval=4.0, step=0.1, group="Trend Detection", tooltip="Suggested: Crypto 3.5, Futures 3.0, Stocks 2.5. Default: 3.0")
 
 // Group 2: Support/Resistance Levels
 // ----------------------------------------------------------------------------
 // Integration with external sr-algo5-ensemble indicator
 // User must manually connect these inputs to ensemble outputs
 
-srLevel1 = input.source(close, "S/R Level 1 (Strongest)",
-    group="Support/Resistance Levels",
-    tooltip="Connect to 'Top S/R Level 1' from sr-algo5-ensemble indicator")
+srLevel1 = input.source(close, "S/R Level 1 (Strongest)", group="Support/Resistance Levels", tooltip="Connect to 'Top S/R Level 1' from sr-algo5-ensemble indicator")
 
-srLevel2 = input.source(close, "S/R Level 2",
-    group="Support/Resistance Levels",
-    tooltip="Connect to 'Top S/R Level 2' from sr-algo5-ensemble indicator")
+srLevel2 = input.source(close, "S/R Level 2", group="Support/Resistance Levels", tooltip="Connect to 'Top S/R Level 2' from sr-algo5-ensemble indicator")
 
-srLevel3 = input.source(close, "S/R Level 3",
-    group="Support/Resistance Levels",
-    tooltip="Connect to 'Top S/R Level 3' from sr-algo5-ensemble indicator")
+srLevel3 = input.source(close, "S/R Level 3", group="Support/Resistance Levels", tooltip="Connect to 'Top S/R Level 3' from sr-algo5-ensemble indicator")
 
-tolerance = input.float(2.0, "Level Tolerance (%)",
-    minval=0.5, maxval=5.0, step=0.1,
-    group="Support/Resistance Levels",
-    tooltip="Distance to consider 'at level'. Daily: 2%, Intraday: 1%, Weekly: 3%")
+tolerance = input.float(2.0, "Level Tolerance (%)",minval=0.5, maxval=5.0, step=0.1,    group="Support/Resistance Levels",    tooltip="Distance to consider 'at level'. Daily: 2%, Intraday: 1%, Weekly: 3%")
 
 // Group 3: Momentum Health Parameters
 // ----------------------------------------------------------------------------
 // Composite score from Volume + RSI + MACD with custom weights
 
-volPeriod = input.int(20, "Volume MA Period",
-    minval=10, maxval=50,
-    group="Momentum Health",
-    tooltip="Lookback period for volume average. Default: 20")
+volPeriod = input.int(20, "Volume MA Period",    minval=10, maxval=50,    group="Momentum Health",    tooltip="Lookback period for volume average. Default: 20")
 
-rsiLength = input.int(14, "RSI Length",
-    minval=7, maxval=21,
-    group="Momentum Health",
-    tooltip="Wilder's original RSI period. Default: 14")
+rsiLength = input.int(14, "RSI Length",    minval=7, maxval=21,    group="Momentum Health",    tooltip="Wilder's original RSI period. Default: 14")
 
-macdFast = input.int(12, "MACD Fast Length",
-    minval=8, maxval=15,
-    group="Momentum Health",
-    tooltip="MACD fast EMA period. Default: 12")
+macdFast = input.int(12, "MACD Fast Length",    minval=8, maxval=15,    group="Momentum Health",    tooltip="MACD fast EMA period. Default: 12")
 
-macdSlow = input.int(26, "MACD Slow Length",
-    minval=20, maxval=30,
-    group="Momentum Health",
-    tooltip="MACD slow EMA period. Default: 26")
+macdSlow = input.int(26, "MACD Slow Length",    minval=20, maxval=30,    group="Momentum Health",    tooltip="MACD slow EMA period. Default: 26")
 
-macdSignal = input.int(9, "MACD Signal Length",
-    minval=7, maxval=12,
-    group="Momentum Health",
-    tooltip="MACD signal line period. Default: 9")
+macdSignal = input.int(9, "MACD Signal Length",    minval=7, maxval=12,    group="Momentum Health",    tooltip="MACD signal line period. Default: 9")
 
-volWeight = input.float(0.4, "Volume Weight",
-    minval=0.2, maxval=0.6, step=0.05,
-    group="Momentum Health",
-    tooltip="Weight in momentum composite. Default: 0.4 (40%)\nHighest weight: institutional participation signal")
+volWeight = input.float(0.4, "Volume Weight",    minval=0.2, maxval=0.6, step=0.05,    group="Momentum Health",    tooltip="Weight in momentum composite. Default: 0.4 (40%). Highest weight: institutional participation signal")
 
-rsiWeight = input.float(0.3, "RSI Weight",
-    minval=0.2, maxval=0.4, step=0.05,
-    group="Momentum Health",
-    tooltip="Weight in momentum composite. Default: 0.3 (30%)")
+rsiWeight = input.float(0.3, "RSI Weight",    minval=0.2, maxval=0.4, step=0.05,    group="Momentum Health",    tooltip="Weight in momentum composite. Default: 0.3 (30%)")
 
-macdWeight = input.float(0.3, "MACD Weight",
-    minval=0.2, maxval=0.4, step=0.05,
-    group="Momentum Health",
-    tooltip="Weight in momentum composite. Default: 0.3 (30%)")
+macdWeight = input.float(0.3, "MACD Weight",    minval=0.2, maxval=0.4, step=0.05,    group="Momentum Health",    tooltip="Weight in momentum composite. Default: 0.3 (30%)")
 
 // Group 4: Entry/Exit Thresholds
 // ----------------------------------------------------------------------------
 // Asymmetric thresholds: Exit early (capital preservation), Enter late (high conviction)
 
-exitMomentumThreshold = input.int(50, "Exit Momentum Threshold",
-    minval=25, maxval=75, step=5,
-    group="Decision Thresholds",
-    tooltip="Exit when momentum falls below this level. Default: 50 (conservative)")
+exitMomentumThreshold = input.int(50, "Exit Momentum Threshold",    minval=25, maxval=75, step=5,    group="Decision Thresholds",    tooltip="Exit when momentum falls below this level. Default: 50 (conservative)")
 
-entryMomentumThreshold = input.int(65, "Entry Momentum Threshold",
-    minval=50, maxval=90, step=5,
-    group="Decision Thresholds",
-    tooltip="Enter when momentum rises above this level. Default: 65 (moderate)\nCreates 15-point neutral zone to reduce whipsaws")
+entryMomentumThreshold = input.int(65, "Entry Momentum Threshold",    minval=50, maxval=90, step=5,    group="Decision Thresholds",    tooltip="Enter when momentum rises above this level. Default: 65 (moderate). Creates 15-point neutral zone to reduce whipsaws")
 
-adxThreshold = input.int(20, "Ranging Market Threshold (ADX)",
-    minval=15, maxval=30, step=5,
-    group="Decision Thresholds",
-    tooltip="ADX below this value = ranging market. Signals shown with warning. Default: 20")
+adxThreshold = input.int(20, "Ranging Market Threshold (ADX)",    minval=15, maxval=30, step=5,    group="Decision Thresholds",    tooltip="ADX below this value = ranging market. Signals shown with warning. Default: 20")
 
-// Group 5: Display Options
+// Group 5: Display Options - Trend & Background
+// ----------------------------------------------------------------------------
+
+showSupertrend = input.bool(true, "Show Supertrend Line",
+ group="Display: Trend",
+ tooltip="Display the Supertrend line on chart (3px colored line)")
+
+showTrendBackground = input.bool(true, "Show Trend Background",
+ group="Display: Trend",
+ tooltip="Display subtle background color for trend direction")
+
+// Group 6: Display Options - S/R Levels
 // ----------------------------------------------------------------------------
 
 showSRLevels = input.bool(true, "Show S/R Levels",
-    group="Display",
-    tooltip="Display horizontal S/R lines on chart")
+ group="Display: S/R Levels",
+ tooltip="Display horizontal S/R lines on chart")
 
-showDashboard = input.bool(true, "Show Info Dashboard",
-    group="Display",
-    tooltip="Display decision support table at top-right")
+showSRLabels = input.bool(true, "Show S/R Labels",
+ group="Display: S/R Levels",
+ tooltip="Display S/R #1, #2, #3 labels at right edge")
 
-showSignals = input.bool(true, "Show Entry/Exit Signals",
-    group="Display",
-    tooltip="Display marker shapes on chart for all signals")
+showSRProximityHighlight = input.bool(true, "Show Proximity Highlight",
+ group="Display: S/R Levels",
+ tooltip="Yellow background when price at any S/R level")
+
+// Group 7: Display Options - Exit Signals
+// ----------------------------------------------------------------------------
+
+showExitSignals = input.bool(true, "Show Exit Signals",
+ group="Display: Exit Signals",
+ tooltip="Master toggle for all exit signals")
+
+showTrendBroken = input.bool(true, "├─ Trend Broken (Red X)",
+ group="Display: Exit Signals",
+ tooltip="Critical exit when price crosses below Supertrend")
+
+showTakeProfit = input.bool(true, "├─ Take Profit (Yellow Diamond)",
+ group="Display: Exit Signals",
+ tooltip="Profit opportunity at resistance with weak momentum")
+
+showMomentumWeak = input.bool(true, "├─ Momentum Weak (Orange Circle)",
+ group="Display: Exit Signals",
+ tooltip="Exit warning when momentum exhausted")
+
+showVolumeDivergence = input.bool(true, "└─ Volume Divergence (Label)",
+ group="Display: Exit Signals",
+ tooltip="Caution label for price/volume divergence")
+
+// Group 8: Display Options - Entry Signals
+// ----------------------------------------------------------------------------
+
+showEntrySignals = input.bool(true, "Show Entry Signals",
+ group="Display: Entry Signals",
+ tooltip="Master toggle for all entry signals")
+
+showTrendConfirmed = input.bool(true, "├─ Trend Confirmed (Green Triangle)",
+ group="Display: Entry Signals",
+ tooltip="Entry when price crosses above Supertrend")
+
+showBuySignal = input.bool(true, "├─ Buy at Support (Green Diamond)",
+ group="Display: Entry Signals",
+ tooltip="Best signal: Support + Strong momentum (BUY/BUY++/BUY+++)")
+
+showMomentumBuilding = input.bool(true, "├─ Momentum Building (Lime Circle)",
+ group="Display: Entry Signals",
+ tooltip="Early entry opportunity with building momentum")
+
+showVolumeConfirmation = input.bool(true, "└─ Volume Confirmation (✓ VOL)",
+ group="Display: Entry Signals",
+ tooltip="High volume validation for entry signals")
+
+// Group 9: Display Options - Warnings & Dashboard
+// ----------------------------------------------------------------------------
 
 showRangingWarnings = input.bool(true, "Show Ranging Market Warnings",
-    group="Display",
-    tooltip="Add ⚠️ labels when signals occur in ranging conditions (ADX <20)")
+ group="Display: Warnings & Info",
+ tooltip="Add ⚠️ RANGING labels when ADX <20")
+
+showDashboard = input.bool(true, "Show Info Dashboard",
+ group="Display: Warnings & Info",
+ tooltip="Display decision support table at top-right")
+
+// Group 10: Alerts
+// ----------------------------------------------------------------------------
 
 enableAlerts = input.bool(false, "Enable Alerts",
-    group="Display",
-    tooltip="Send notifications for critical entry/exit signals")
+ group="Alerts",
+ tooltip="Send notifications for critical entry/exit signals")
 
-// Group 6: Position State (Optional)
+// Group 11: Position State (Optional)
 // ----------------------------------------------------------------------------
 
 inPosition = input.bool(false, "Currently In Position?",
-    group="Position State",
-    tooltip="Check if holding the asset. Affects decision display emphasis.\nIn position = emphasize EXIT decisions\nOut of position = emphasize ENTRY signals")
+ group="Position State",
+ tooltip="Check if holding the asset. Affects decision display emphasis. In position = emphasize EXIT decisions, Out of position = emphasize ENTRY signals")
 
 // ============================================================================
 // SECTION 2: COMPONENT 1 - TREND DETECTION (SUPERTREND)
@@ -213,13 +227,13 @@ trendColor = isBullish ? color.new(#00E676, 0) : color.new(#FF5252, 0)  // Green
 bgColor = isBullish ? color.new(#00E676, 95) : color.new(#FF5252, 95)   // Subtle background
 
 // Plot Supertrend line on main chart (3px width for visibility)
-plot(supertrend, "Supertrend Line",
+plot(showSupertrend ? supertrend : na, "Supertrend Line",
      color=trendColor,
      linewidth=3,
      style=plot.style_line)
 
 // Background fill to emphasize trend direction (95% transparency)
-bgcolor(bgColor, title="Trend Background")
+bgcolor(showTrendBackground ? bgColor : na, title="Trend Background")
 
 // ============================================================================
 // SECTION 3: COMPONENT 2 - S/R LEVEL PROXIMITY DETECTION
@@ -278,27 +292,21 @@ distToLevel3 = math.abs(close - srLevel3) / close * 100
 // Level 1: Strongest - White solid line (2px)
 plot(showSRLevels ? srLevel1 : na, "S/R Level 1",
      color=color.new(#FFFFFF, 0),
-     linewidth=2,
+     linewidth=23,
      style=plot.style_line)
 
 // Level 2: Medium - Gray dashed line (1.5px, 30% transparency)
-plot(showSRLevels ? srLevel2 : na, "S/R Level 2",
-     color=color.new(#808080, 30),
-     linewidth=1.5,
-     style=plot.style_linebr)
+plot(showSRLevels ? srLevel2 : na, "S/R Level 2",     color=color.new(#808080, 30),     linewidth=2,     style=plot.style_linebr)
 
 // Level 3: Weakest - Gray dotted line (1px, 50% transparency)
-plot(showSRLevels ? srLevel3 : na, "S/R Level 3",
-     color=color.new(#808080, 50),
-     linewidth=1,
-     style=plot.style_circles)
+plot(showSRLevels ? srLevel3 : na, "S/R Level 3",     color=color.new(#808080, 50),     linewidth=1,     style=plot.style_circles)
 
 // Proximity Highlight: Yellow background when price at any S/R level
-bgcolor(atAnyLevel ? color.new(#FFEB3B, 90) : na, title="At S/R Level")
+bgcolor(showSRProximityHighlight and atAnyLevel ? color.new(#FFEB3B, 90) : na, title="At S/R Level")
 
 // S/R Labels at Right Edge of Chart
 // Only display on the last bar to avoid clutter
-if barstate.islast and showSRLevels
+if barstate.islast and showSRLevels and showSRLabels
     if not na(srLevel1)
         label.new(bar_index, srLevel1, "S/R #1",
                   style=label.style_label_left,
@@ -350,8 +358,10 @@ if barstate.islast and showSRLevels
 // ----------------------------------------------------------------------------
 // Detects institutional participation via volume ratio (current / 20-bar average)
 // Thresholds based on research: 1.3x=elevated, 1.5x=high, 2.0x=extreme
+// BUG FIX #4: Added NA protection for early bars when SMA not available
 
-volRatio = volume / ta.sma(volume, volPeriod)
+volSMA = ta.sma(volume, volPeriod)
+volRatio = not na(volSMA) and volSMA > 0 ? volume / volSMA : 1.0  // Default to normal (1.0) if NA
 
 // 5-Tier Scoring System
 volScore =
@@ -409,26 +419,31 @@ rsiState = isBullish ?
 // Alignment checks
 macdBullish = macdLine > signalLine
 macdBearish = macdLine < signalLine
-macdAccelerating = histogram > histogram[1]  // Histogram rising
-macdDecelerating = histogram < histogram[1]  // Histogram falling
+
+// BUG FIX #5: Trend-dependent acceleration logic
+// Bullish acceleration: histogram rising (getting more positive)
+// Bearish acceleration: histogram falling (getting more negative)
+macdAccelerating = isBullish ?
+                   (histogram > histogram[1]) :  // Bullish: histogram rising
+                   (histogram < histogram[1])    // Bearish: histogram falling
 
 // Trend-Adjusted Scoring with Acceleration Check
 macdScore = isBullish ?
      (macdBullish and macdAccelerating ? 100 :  // Confirming + accelerating
       macdBullish ? 75 :                        // Confirming
       0) :                                       // Diverging (warning)
-     (macdBearish and macdDecelerating ? 100 :  // Confirming + accelerating
+     (macdBearish and macdAccelerating ? 100 :  // Confirming + accelerating (now correct)
       macdBearish ? 75 :                        // Confirming
       0)                                         // Diverging (warning)
 
 // MACD state label for table display
 macdState = isBullish ?
-     (macdBullish and macdAccelerating ? "BULL ACCEL ✓" :
-      macdBullish ? "BULLISH ✓" :
-      "BEARISH ✗") :
-     (macdBearish and macdDecelerating ? "BEAR ACCEL ✓" :
-      macdBearish ? "BEARISH ✓" :
-      "BULLISH ✗")
+ (macdBullish and macdAccelerating ? "BULL ACCEL ✓" :
+ macdBullish ? "BULLISH ✓" :
+ "BEARISH ✗") :
+ (macdBearish and macdAccelerating ? "BEAR ACCEL ✓" :  // Now uses trend-dependent macdAccelerating
+ macdBearish ? "BEARISH ✓" :
+ "BULLISH ✗")
 
 // ----------------------------------------------------------------------------
 // Weighted Composite Calculation
@@ -439,17 +454,17 @@ momentumHealth = (volScore * volWeight) + (rsiScore * rsiWeight) + (macdScore * 
 
 // Classification into 4 states
 momentumState =
-     momentumHealth >= 75 ? "STRONG" :
-     momentumHealth >= 50 ? "HEALTHY" :
-     momentumHealth >= 25 ? "WEAKENING" :
+ momentumHealth >= 75 ? "STRONG" :
+ momentumHealth >= 50 ? "HEALTHY" :
+ momentumHealth >= 25 ? "WEAKENING" :
      "EXHAUSTED"
 
 // Color coding for visual feedback
 momentumColor =
-     momentumHealth >= 75 ? color.new(#00E676, 0) :  // Green - Strong
-     momentumHealth >= 50 ? color.new(#C6FF00, 0) :  // Lime - Healthy
-     momentumHealth >= 25 ? color.new(#FFEB3B, 0) :  // Yellow - Weakening
-     color.new(#FF5252, 0)                            // Red - Exhausted
+ momentumHealth >= 75 ? color.new(#00E676, 0) :  // Green - Strong
+ momentumHealth >= 50 ? color.new(#C6FF00, 0) :  // Lime - Healthy
+ momentumHealth >= 25 ? color.new(#FFEB3B, 0) :  // Yellow - Weakening
+ color.new(#FF5252, 0)                            // Red - Exhausted
 
 // ============================================================================
 // SECTION 5: EXIT DECISION ENGINE (4 RULES)
@@ -561,8 +576,10 @@ exitColor =
 // ----------------------------------------------------------------------------
 // Entry when price crosses above Supertrend (inverse of trend break exit)
 // Accuracy: 70-75%
+// BUG FIX #1: Changed from isBearish[1] to (not isBullish[1]) to correctly check
+//             we weren't already in uptrend before crossover
 
-trendEstablished = ta.crossover(close, supertrend) and barstate.isconfirmed and isBearish[1]
+trendEstablished = ta.crossover(close, supertrend) and barstate.isconfirmed and not isBullish[1]
 
 // ----------------------------------------------------------------------------
 // Entry Rule 2: Support + Strong Momentum (BEST SIGNAL)
@@ -600,12 +617,13 @@ volumeConfirmation = volRatio >= 1.5 and close > close[1] and isBullish
 // Confluence Tracking for "BUY+++" Display
 // ----------------------------------------------------------------------------
 // Count how many entry rules triggered on same bar
+// BUG FIX #2: Changed from incremental := assignment to single expression
+//             to correctly count current bar signals (not accumulate across bars)
 
-entrySignalCount = 0
-entrySignalCount := entrySignalCount + (trendEstablished ? 1 : 0)
-entrySignalCount := entrySignalCount + (buySignal ? 1 : 0)
-entrySignalCount := entrySignalCount + (momentumBuilding ? 1 : 0)
-entrySignalCount := entrySignalCount + (volumeConfirmation ? 1 : 0)
+entrySignalCount = (trendEstablished ? 1 : 0) +
+                   (buySignal ? 1 : 0) +
+                   (momentumBuilding ? 1 : 0) +
+                   (volumeConfirmation ? 1 : 0)
 
 // Any entry signal active?
 anyEntrySignal = trendEstablished or buySignal or momentumBuilding
@@ -668,7 +686,9 @@ plusDI = ta.rma(plusDM, adxLength) / trSmooth * 100
 minusDI = ta.rma(minusDM, adxLength) / trSmooth * 100
 
 // Calculate DX (Directional Index)
-dx = math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100
+// BUG FIX #3: Added division by zero protection for (plusDI + minusDI)
+sumDI = plusDI + minusDI
+dx = sumDI > 0 ? math.abs(plusDI - minusDI) / sumDI * 100 : 0
 
 // Calculate ADX (smoothed DX)
 adx = ta.rma(dx, adxLength)
@@ -688,69 +708,106 @@ rangingWarning = isRanging ? " ⚠️ RANGING" : ""
 // Entry signals: GREEN markers below bars
 // Ranging warnings: Added to labels when ADX <20
 //
+// NOTE: plotshape must be at global scope per PineScript execution model
+// Conditions include showSignals check to respect user display preference
+//
 // ============================================================================
 
-if showSignals
-    // ------------------------------------------------------------------------
-    // EXIT SIGNAL MARKERS (Above Bar)
-    // ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// EXIT SIGNAL MARKERS (Above Bar)
+// ------------------------------------------------------------------------
 
-    // Exit Rule 1: Trend Broken (CRITICAL) - Red X, large
-    plotshape(trendBroken, "Trend Broken",
-              shape.xcross, location.abovebar,
-              color.new(#FF5252, 0), size=size.large, text="EXIT")
+// Exit Rule 1: Trend Broken (CRITICAL) - Red X, large
+plotshape(showExitSignals and showTrendBroken and trendBroken, "Trend Broken",
+          shape.xcross, location.abovebar,
+          color.new(#FF5252, 0), size=size.large, text="EXIT")
 
-    // Exit Rule 2: Take Profit - Yellow diamond, normal
-    plotshape(takeProfitSignal, "Take Profit",
-              shape.diamond, location.abovebar,
-              color.new(#FFEB3B, 0), size=size.normal, text="PROFIT")
+// Exit Rule 2: Take Profit - Yellow diamond, normal
+plotshape(showExitSignals and showTakeProfit and takeProfitSignal, "Take Profit",
+          shape.diamond, location.abovebar,
+          color.new(#FFEB3B, 0), size=size.normal, text="PROFIT")
 
-    // Exit Rule 3: Momentum Exhausted - Orange circle, small
-    plotshape(momentumExhausted, "Momentum Weak",
-              shape.circle, location.abovebar,
-              color.new(#FF9800, 0), size=size.small, text="WEAK")
+// Exit Rule 3: Momentum Exhausted - Orange circle, small
+plotshape(showExitSignals and showMomentumWeak and momentumExhausted, "Momentum Weak",
+          shape.circle, location.abovebar,
+          color.new(#FF9800, 0), size=size.small, text="WEAK")
 
-    // Exit Rule 4: Volume Divergence - Yellow label
-    if volumeDivergence
-        labelText = "⚠️ VOLUME DIVERGENCE" + (showRangingWarnings ? rangingWarning : "")
-        label.new(bar_index, high * 1.02, labelText,
-                  color=color.new(#FFEB3B, 20),
-                  textcolor=color.black,
-                  style=label.style_label_down,
-                  size=size.normal)
+// ------------------------------------------------------------------------
+// ENTRY SIGNAL MARKERS (Below Bar)
+// ------------------------------------------------------------------------
 
-    // ------------------------------------------------------------------------
-    // ENTRY SIGNAL MARKERS (Below Bar)
-    // ------------------------------------------------------------------------
+// Entry Rule 1: Trend Confirmation - Green triangle up, normal
+plotshape(showEntrySignals and showTrendConfirmed and trendEstablished, "Trend Confirmed",
+          shape.triangleup, location.belowbar,
+          color.new(#00E676, 0), size=size.normal, text="ENTRY")
 
-    // Entry Rule 1: Trend Confirmation - Green triangle up, normal
-    if trendEstablished
-        labelText = "ENTRY" + (showRangingWarnings ? rangingWarning : "")
-        plotshape(trendEstablished, "Trend Confirmed",
-                  shape.triangleup, location.belowbar,
-                  color.new(#00E676, 0), size=size.normal, text=labelText)
+// Entry Rule 2: Support + Strong (BEST) - Bright green diamond, normal
+// Note: BUY+/++/+++ confluence shown via separate plotshapes for const text
+plotshape(showEntrySignals and showBuySignal and buySignal and entrySignalCount >= 3, "Buy at Support (3+)",
+          shape.diamond, location.belowbar,
+          color.new(#00FF00, 0), size=size.normal, text="BUY+++")
 
-    // Entry Rule 2: Support + Strong (BEST) - Bright green diamond, normal
-    if buySignal
-        signalText = entrySignalCount >= 3 ? "BUY+++" :
-                     entrySignalCount == 2 ? "BUY++" :
-                     "BUY"
-        labelText = signalText + (showRangingWarnings ? rangingWarning : "")
-        plotshape(buySignal, "Buy at Support",
-                  shape.diamond, location.belowbar,
-                  color.new(#00FF00, 0), size=size.normal, text=labelText)
+plotshape(showEntrySignals and showBuySignal and buySignal and entrySignalCount == 2, "Buy at Support (2)",
+          shape.diamond, location.belowbar,
+          color.new(#00FF00, 0), size=size.normal, text="BUY++")
 
-    // Entry Rule 3: Momentum Building - Lime circle, small
-    if momentumBuilding
-        labelText = "MOM+" + (showRangingWarnings ? rangingWarning : "")
-        plotshape(momentumBuilding, "Momentum Building",
-                  shape.circle, location.belowbar,
-                  color.new(#76FF03, 0), size=size.small, text=labelText)
+plotshape(showEntrySignals and showBuySignal and buySignal and entrySignalCount == 1, "Buy at Support (1)",
+          shape.diamond, location.belowbar,
+          color.new(#00FF00, 0), size=size.normal, text="BUY")
 
-    // Entry Rule 4: Volume Confirmation - Green checkmark label
-    if volumeConfirmation and anyEntrySignal
-        label.new(bar_index, low * 0.98, "✓ VOL",
-                  color=color.new(#00E676, 20),
+// Entry Rule 3: Momentum Building - Lime circle, small
+plotshape(showEntrySignals and showMomentumBuilding and momentumBuilding, "Momentum Building",
+          shape.circle, location.belowbar,
+          color.new(#76FF03, 0), size=size.small, text="MOM+")
+
+// ------------------------------------------------------------------------
+// CUSTOM LABELS (Can stay in conditional blocks)
+// ------------------------------------------------------------------------
+
+// Exit Rule 4: Volume Divergence - Yellow label (above bar)
+if showExitSignals and showVolumeDivergence and volumeDivergence
+    labelText = "⚠️ VOLUME DIVERGENCE" + (showRangingWarnings and isRanging ? " (RANGING)" : "")
+    label.new(bar_index, high * 1.02, labelText,
+              color=color.new(#FFEB3B, 20),
+              textcolor=color.black,
+              style=label.style_label_down,
+              size=size.normal)
+
+// ------------------------------------------------------------------------
+// ENTRY SUPPLEMENTARY LABELS (Below Bar) - Dynamic Stacking
+// ------------------------------------------------------------------------
+// Calculate how many labels to show and stack them dynamically to avoid gaps
+
+var float labelOffset = 0.02  // 2% spacing between labels
+int labelCount = 0  // Counter for vertical positioning
+
+// Entry Rule 4: Volume Confirmation - Green checkmark label
+if showEntrySignals and showVolumeConfirmation and volumeConfirmation and anyEntrySignal
+    labelY = low * (1 - labelOffset * (labelCount + 1))
+    label.new(bar_index, labelY, "✓ VOL",
+              color=color.new(#00E676, 20),
+              textcolor=color.white,
+              style=label.style_label_up,
+              size=size.tiny)
+    labelCount += 1
+
+// Ranging warning - single consolidated label (if any entry signal active in ranging market)
+if showRangingWarnings and isRanging
+    showRangingLabel = false
+
+    if showEntrySignals and showTrendConfirmed and trendEstablished
+        showRangingLabel := true
+
+    if showEntrySignals and showBuySignal and buySignal
+        showRangingLabel := true
+
+    if showEntrySignals and showMomentumBuilding and momentumBuilding
+        showRangingLabel := true
+
+    if showRangingLabel
+        labelY = low * (1 - labelOffset * (labelCount + 1))
+        label.new(bar_index, labelY, "⚠️ RANGING",
+                  color=color.new(#FF9800, 20),
                   textcolor=color.white,
                   style=label.style_label_up,
                   size=size.tiny)
@@ -917,51 +974,53 @@ if showDashboard and barstate.islast
 // Use {{ticker}} and {{close}} placeholders for dynamic values
 // Only fire when enableAlerts = true (user preference)
 //
+// NOTE: alertcondition must be at global scope per PineScript execution model
+// Conditions include enableAlerts check to respect user preference
+//
 // ============================================================================
 
-if enableAlerts
-    // ------------------------------------------------------------------------
-    // EXIT ALERTS (4)
-    // ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// EXIT ALERTS (4)
+// ------------------------------------------------------------------------
 
-    // Alert 1: Trend Broken (CRITICAL - Highest Priority)
-    alertcondition(trendBroken,
-                   title="CRITICAL: Trend Broken",
-                   message="EXIT: {{ticker}} closed below trend line at {{close}}. Trend broken.")
+// Alert 1: Trend Broken (CRITICAL - Highest Priority)
+alertcondition(enableAlerts and trendBroken,
+               title="CRITICAL: Trend Broken",
+               message="EXIT: {{ticker}} closed below trend line at {{close}}. Trend broken.")
 
-    // Alert 2: Take Profit Opportunity
-    alertcondition(takeProfitSignal,
-                   title="Profit Opportunity",
-                   message="PROFIT: {{ticker}} at resistance ({{close}}) with weak momentum. Consider exit.")
+// Alert 2: Take Profit Opportunity
+alertcondition(enableAlerts and takeProfitSignal,
+               title="Profit Opportunity",
+               message="PROFIT: {{ticker}} at resistance ({{close}}) with weak momentum. Consider exit.")
 
-    // Alert 3: Momentum Exhaustion Warning
-    alertcondition(momentumExhausted,
-                   title="Momentum Warning",
-                   message="WARNING: {{ticker}} momentum exhausted. Watch closely.")
+// Alert 3: Momentum Exhaustion Warning
+alertcondition(enableAlerts and momentumExhausted,
+               title="Momentum Warning",
+               message="WARNING: {{ticker}} momentum exhausted. Watch closely.")
 
-    // Alert 4: Volume Divergence Caution
-    alertcondition(volumeDivergence,
-                   title="Volume Divergence",
-                   message="CAUTION: {{ticker}} new high on declining volume. Exhaustion possible.")
+// Alert 4: Volume Divergence Caution
+alertcondition(enableAlerts and volumeDivergence,
+               title="Volume Divergence",
+               message="CAUTION: {{ticker}} new high on declining volume. Exhaustion possible.")
 
-    // ------------------------------------------------------------------------
-    // ENTRY ALERTS (3)
-    // ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// ENTRY ALERTS (3)
+// ------------------------------------------------------------------------
 
-    // Alert 5: Trend Confirmation Entry
-    alertcondition(trendEstablished,
-                   title="BUY: Trend Confirmed",
-                   message="ENTRY: {{ticker}} crossed above trend line at {{close}}.")
+// Alert 5: Trend Confirmation Entry
+alertcondition(enableAlerts and trendEstablished,
+               title="BUY: Trend Confirmed",
+               message="ENTRY: {{ticker}} crossed above trend line at {{close}}.")
 
-    // Alert 6: Support + Strong Momentum (PRIORITY BUY)
-    alertcondition(buySignal,
-                   title="BUY: Support + Strong",
-                   message="BUY: {{ticker}} at support ({{close}}) with strong momentum.")
+// Alert 6: Support + Strong Momentum (PRIORITY BUY)
+alertcondition(enableAlerts and buySignal,
+               title="BUY: Support + Strong",
+               message="BUY: {{ticker}} at support ({{close}}) with strong momentum.")
 
-    // Alert 7: Momentum Building (Early Entry Opportunity)
-    alertcondition(momentumBuilding,
-                   title="Entry Opportunity",
-                   message="WATCH: {{ticker}} momentum building. Consider entry.")
+// Alert 7: Momentum Building (Early Entry Opportunity)
+alertcondition(enableAlerts and momentumBuilding,
+               title="Entry Opportunity",
+               message="WATCH: {{ticker}} momentum building. Consider entry.")
 
 // ============================================================================
 // END OF MKN SUPER INDICATOR
