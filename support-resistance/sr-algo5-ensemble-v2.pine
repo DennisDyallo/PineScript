@@ -603,7 +603,7 @@ if enableAlgo2 and barstate.islast
 
                     // Final strength (multiplicative confluence)
                     strength = baseStrength * confluenceMultiplier * regimeMultiplier
-                    // Allow >100 for discriminative power (no cap)
+                    strength := math.max(0, strength)  // Safety: prevent negative values
 
                     if strength >= 50
                         level = StatLevel.new(
@@ -674,7 +674,7 @@ if enableAlgo2 and barstate.islast
 
                     // Final strength (multiplicative confluence)
                     strength = baseStrength * confluenceMultiplier * regimeMultiplier
-                    // Allow >100 for discriminative power (no cap)
+                    strength := math.max(0, strength)  // Safety: prevent negative values
 
                     if strength >= 50
                         level = StatLevel.new(
@@ -873,7 +873,7 @@ if enableAlgo3 and barstate.islast
                 distanceMultiplier = distance < 0.05 ? 1.0 : math.max(0.6, 1.0 - distance)
 
                 finalStrength = (baseStrength + confluenceBonus + touchBonus) * distanceMultiplier * regimeMultiplier * volumeBoost
-                // Allow >100 for discriminative power (no cap)
+                finalStrength := math.max(0, finalStrength)  // Safety: prevent negative values
 
                 if finalStrength >= 50
                     level = MTFLevel.new(
@@ -1174,22 +1174,36 @@ if barstate.islast
                 for k = 0 to array.size(cluster) - 1
                     member = array.get(cluster, k)
 
+                    // Take MAXIMUM strength when same algorithm appears multiple times
+                    // (e.g., VP POC + VAH clustering together)
                     if member.algorithm == "VP"
-                        vpScore += member.strength
-                        totalWeight += vpWeight
-                        fromVP := true
+                        if not fromVP
+                            vpScore := member.strength
+                            totalWeight += vpWeight
+                            fromVP := true
+                        else
+                            vpScore := math.max(vpScore, member.strength)
                     else if member.algorithm == "STAT"
-                        statScore += member.strength
-                        totalWeight += statWeight
-                        fromSTAT := true
+                        if not fromSTAT
+                            statScore := member.strength
+                            totalWeight += statWeight
+                            fromSTAT := true
+                        else
+                            statScore := math.max(statScore, member.strength)
                     else if member.algorithm == "MTF"
-                        mtfScore += member.strength
-                        totalWeight += mtfWeight
-                        fromMTF := true
+                        if not fromMTF
+                            mtfScore := member.strength
+                            totalWeight += mtfWeight
+                            fromMTF := true
+                        else
+                            mtfScore := math.max(mtfScore, member.strength)
                     else if member.algorithm == "OB"
-                        obScore += member.strength
-                        totalWeight += obWeight
-                        fromOB := true
+                        if not fromOB
+                            obScore := member.strength
+                            totalWeight += obWeight
+                            fromOB := true
+                        else
+                            obScore := math.max(obScore, member.strength)
 
                 // Weighted ensemble strength (UNCAPPED for discriminative power)
                 internalStrength = totalWeight > 0 ? ((vpScore * vpWeight) + (statScore * statWeight) + (mtfScore * mtfWeight) + (obScore * obWeight)) / totalWeight : 0.0
@@ -1457,7 +1471,7 @@ highConsensusNearby = false
 if array.size(ensembleLevels) > 0
     for i = 0 to math.min(2, array.size(ensembleLevels) - 1)
         level = array.get(ensembleLevels, i)
-        if level.algorithmCount >= 3 and level.strength >= 75
+        if level.algorithmCount >= 3 and level.displayStrength >= 75
             distance = calcDistance(level.price, close)
             if distance < 0.01
                 highConsensusNearby := true
