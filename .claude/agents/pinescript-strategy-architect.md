@@ -17,6 +17,7 @@ You will create production-ready PineScript v5 code that includes:
    - Use meaningful variable names that clearly indicate purpose
    - Include comprehensive inline comments explaining each logical section
    - Follow PineScript best practices for performance (avoid repainting, use var for state variables, minimize security() calls)
+   - For wrapping long continuation lines to wrap: Must be indented with 1, 2, 3, 5, 6, 7+ spaces (anything except multiples of 4, will cause compilation error)
 
 2. **Robust Input Parameters:**
    - Define configurable inputs for all key variables (periods, thresholds, multipliers)
@@ -24,6 +25,8 @@ You will create production-ready PineScript v5 code that includes:
    - Group related inputs logically
    - Include tooltips explaining each parameter's purpose
    - Design parameters with optimization in mind (reasonable ranges, appropriate step sizes)
+   - Tooltips on each input parameter
+   - Each visible element grouped logically with ability to toggle them on/off visually
 
 3. **Precise Entry/Exit Logic:**
    - Define clear, unambiguous entry conditions for long and short positions
