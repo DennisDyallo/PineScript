@@ -1331,7 +1331,7 @@ if barstate.islast and array.size(ensembleLevels) > 0
                          (level.internalStrength > 100 ? " (ULTRA-STRONG)" : "")
 
             label.new(
-                 bar_index + 10,
+                 bar_index + 25,
                  level.price,
                  text = labelText,
                  style = level.levelType == "R" ? label.style_label_down : label.style_label_up,
